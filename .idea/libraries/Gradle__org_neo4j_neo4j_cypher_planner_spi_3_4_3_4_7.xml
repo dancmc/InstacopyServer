@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.neo4j:neo4j-cypher-planner-spi-3.4:3.4.7">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-cypher-planner-spi-3.4/3.4.7/76b545ce4b8fc6edd1f93d47bce6266b74f99aaf/neo4j-cypher-planner-spi-3.4-3.4.7.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-cypher-planner-spi-3.4/3.4.7/f9619b84f2cd8f3a7d377488deabd01fa6cf76b8/neo4j-cypher-planner-spi-3.4-3.4.7-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

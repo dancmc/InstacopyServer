@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.neo4j:neo4j-index:3.4.7">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-index/3.4.7/64a5c14062c5b4c7820013c7bb03e55bdd3ee1ba/neo4j-index-3.4.7.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-index/3.4.7/f6fef397031cfb9ec53f3863aa451e52f46dd344/neo4j-index-3.4.7-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

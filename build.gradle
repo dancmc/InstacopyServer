@@ -1,0 +1,68 @@
+buildscript {
+    ext.kotlin_version = '1.2.51'
+
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+group 'io.dancmc'
+
+apply plugin: 'java'
+apply plugin: 'kotlin'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile "org.jetbrains.kotlinx:kotlinx-coroutines-core:0.21"
+    compile 'com.squareup.retrofit2:retrofit:2.3.0'
+    compile 'com.squareup.retrofit2:converter-gson:2.3.0'
+    compile 'com.squareup.retrofit2:converter-scalars:2.3.0'
+    compile group: 'org.json', name: 'json', version: '20180130'
+    compile "com.sparkjava:spark-kotlin:1.0.0-alpha"
+    // https://mvnrepository.com/artifact/org.neo4j/neo4j
+    compile group: 'org.neo4j', name: 'neo4j', version: '3.4.7'
+
+    compile 'org.neo4j.driver:neo4j-java-driver:1.4.4'
+    compile 'org.neo4j:neo4j-bolt:3.4.7'
+    compile 'de.mkammerer:argon2-jvm:2.2'
+    compile 'com.javadocmd:simplelatlng:1.3.1'
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "1.8"
+}
+
+jar {
+    manifest {
+        attributes(
+                "Main-Class": "io.dancmc.testserver.Main"
+        )
+    }
+}
+
+task fatJar(type: Jar) {
+    manifest.from jar.manifest
+    baseName 'TestServer'
+    version= ""
+    from {
+        configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    with jar
+}

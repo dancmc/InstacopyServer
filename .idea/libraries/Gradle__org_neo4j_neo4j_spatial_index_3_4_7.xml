@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.neo4j:neo4j-spatial-index:3.4.7">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-spatial-index/3.4.7/518da36bac27b22de5541c0ed22ecf7eded94e3a/neo4j-spatial-index-3.4.7.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.neo4j/neo4j-spatial-index/3.4.7/9bfb8e2fea36341f23a6823b2a9dbbf9bddb0ddf/neo4j-spatial-index-3.4.7-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

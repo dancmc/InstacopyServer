@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel>
+      <module name="TestServer_main" target="1.8" />
+      <module name="testserver_main" target="1.8" />
+      <module name="TestServer_test" target="1.8" />
+      <module name="testserver_test" target="1.8" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="HaskellBuildOptions">
+    <ghcPath>/usr/local/bin/ghc</ghcPath>
+    <cabalPath>/usr/local/bin/cabal</cabalPath>
+    <stackPath>/usr/local/bin/stack</stackPath>
+  </component>
+</project>
