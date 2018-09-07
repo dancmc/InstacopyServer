@@ -1,7 +1,7 @@
 package io.dancmc.testserver.Data
 
 data class User(
-        val userID:String,
+        var userID:String,
         val username:String,
         val passwordHash:String,
         val email:String,

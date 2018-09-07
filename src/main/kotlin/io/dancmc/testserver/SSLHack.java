@@ -1,14 +1,12 @@
 package io.dancmc.testserver;
 
-import okhttp3.Interceptor;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import okhttp3.*;
 
 import javax.net.ssl.*;
 import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.Collections;
 
 public class SSLHack {
 
@@ -40,7 +38,17 @@ public class SSLHack {
             // Create an ssl socket factory with our all-trusting manager
             final SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
 
-            return new OkHttpClient.Builder()
+            ConnectionSpec spec = new ConnectionSpec.Builder(ConnectionSpec.COMPATIBLE_TLS)
+                    .tlsVersions(TlsVersion.TLS_1_2, TlsVersion.TLS_1_1, TlsVersion.TLS_1_0)
+                    .cipherSuites(
+                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                            CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA)
+                    .build();
+
+
+            OkHttpClient client = new OkHttpClient.Builder()
                     .sslSocketFactory(sslSocketFactory, (X509TrustManager) trustAllCerts[0])
                     .hostnameVerifier(new HostnameVerifier() {
                         @Override
@@ -55,7 +63,10 @@ public class SSLHack {
 
                             return chain.proceed(request);
                         }
-                    }).build();
+                    })
+            .connectionSpecs(Collections.singletonList(spec)).build();
+
+            return client;
 
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -66,7 +66,7 @@ class ImagePuller {
                 .build()
 
         val uiFacesRetrofit = Retrofit.Builder()
-                .client(httpClient1)
+                .client(SSLHack.getUnsafeOkHttpClient())
                 .baseUrl(uiFacesApiUrl)
                 .addConverterFactory(ScalarsConverterFactory.create())
                 .addConverterFactory(GsonConverterFactory.create())
@@ -79,16 +79,16 @@ class ImagePuller {
 
         fun getUrls(accessKey: String) {
 
-            FileWriter(File("/users/daniel/downloads/unsplash/thumb-v2.txt"), true).use { thumbWriter ->
-                FileWriter(File("/users/daniel/downloads/unsplash/small-v2.txt"), true).use { smallWriter ->
-                    FileWriter(File("/users/daniel/downloads/unsplash/regular-v2.txt"), true).use { regularWriter ->
+            FileWriter(File("/users/daniel/downloads/unsplash/thumb-v3.txt"), true).use { thumbWriter ->
+                FileWriter(File("/users/daniel/downloads/unsplash/small-v3.txt"), true).use { smallWriter ->
+                    FileWriter(File("/users/daniel/downloads/unsplash/regular-v3.txt"), true).use { regularWriter ->
                         runBlocking {
-                            for (i in 1001..1050) {
+                            for (i in 1..50) {
 
                                 val queries = hashMapOf(
                                         Pair("page", i.toString()),
                                         Pair("per_page", "30"),
-                                        Pair("order_by", "oldest"))
+                                        Pair("order_by", "latest"))
 
 
                                 val array = JSONArray(unsplashApi.getCurated(accessToken = "Client-ID $accessKey", queries = queries).execute().body())
@@ -173,11 +173,14 @@ class ImagePuller {
 
         }
 
-        fun getUsers(numberWanted: Int, gender: String): Pair<ArrayList<User>,ArrayList<String>> {
+        fun getUsers(numberWanted: Int, gender: String, useFile:Boolean): ArrayList<User> {
             val rng = Random()
             val users = ArrayList<User>()
-            val locations = ArrayList<String>()
-            val result = JSONObject(randomUserApi.getUsers(numberWanted, gender, "abcde").execute().body()).getJSONArray("results")
+            val getJSON = {
+                val lines = Utils.loadFile("/users/daniel/downloads/unsplash/${gender}_users.txt")
+                 JSONArray(lines.joinToString(""))
+            }
+            val result = if(useFile) getJSON()  else JSONObject(randomUserApi.getUsers(numberWanted, gender, "abcde").execute().body()).getJSONArray("results")
             var count = 0
 
             try {
@@ -187,6 +190,7 @@ class ImagePuller {
                     val userID = loginData.getString("uuid")
                     val username = loginData.getString("username")
                     val passwordHash = Utils.Password.hashPassword(loginData.getString("password"))
+//                    val passwordHash = loginData.getString("password")
                     val email = userObject.getString("email")
                     val emailVerified = true
                     val nameData = userObject.getJSONObject("name")
@@ -199,10 +203,7 @@ class ImagePuller {
                     val profileDesc = ""
                     val isPrivate = rng.nextDouble() <= 0.25
 
-                    val state = userObject.getJSONObject("location").getString("state")
-                    val city = userObject.getJSONObject("location").getString("city")
 
-                    locations.add("$state, $city")
                     users.add(User(username = username, userID = userID, passwordHash = passwordHash, email = email, emailVerified = emailVerified,
                             firstName = firstName, lastName = lastName, active = active, isBot = isBot, displayName = displayName, profileName = profileName,
                             profileDesc = profileDesc, isPrivate = isPrivate))
@@ -216,7 +217,7 @@ class ImagePuller {
             }
 
 
-            return Pair(users,locations)
+            return users
         }
 
         fun getFaces(gender:String, limit:Int):ArrayList<String>{
@@ -231,38 +232,36 @@ class ImagePuller {
         fun fetchProfilePhotos() {
             val jobs = mutableListOf<Job>()
 
-            try {
-                BufferedReader(FileReader(File("/users/daniel/downloads/unsplash/profile_pics.txt"))).use { br ->
-                    var line = br.readLine()
-
-                    while (line != null) {
-                        val components = line.split("\t")
-                        jobs += launch(CommonPool) {
-                            processProfileDownload(components)
-                        }
-
-                        line = br.readLine()
-                    }
+            val malePics = Utils.loadTSV("/users/daniel/downloads/unsplash/profiles_male_v2.txt")
+            malePics.forEachIndexed {index, url->
+                jobs += launch(CommonPool) {
+                    processProfileDownload("male", url[0], index)
                 }
-            } catch (e: Exception) {
-                println(e.message)
             }
-
+            val femalePics = Utils.loadTSV("/users/daniel/downloads/unsplash/profiles_female_v2.txt")
+            femalePics.forEachIndexed {index, url->
+                jobs += launch(CommonPool) {
+                    processProfileDownload("female", url[0], index)
+                }
+            }
             runBlocking { jobs.forEach { it.join() } }
+
         }
 
-        suspend fun processProfileDownload(components: List<String>) {
+
+
+        suspend fun processProfileDownload(gender:String, url: String, name:Int) {
             try {
 
-                val tempFile = File("/users/daniel/downloads/unsplash/profiles/${components[0]}.jpg")
+                val tempFile = File("/users/daniel/downloads/unsplash/${gender}_pics/$name.jpg")
                 if (!tempFile.exists()) {
                     tempFile.createNewFile()
-                    URL(components[1]).openStream().use({ `in` -> Files.copy(`in`, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING) })
-                    delay(50)
+                    URL(url).openStream().use({ `in` -> Files.copy(`in`, tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING) })
+                    delay(20)
                 }
             } catch (e: Exception) {
                 println(e.message)
-                println(components[0])
+                println(url)
             }
         }
 
