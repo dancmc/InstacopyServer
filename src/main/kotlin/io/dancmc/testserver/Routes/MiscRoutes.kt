@@ -10,7 +10,7 @@ import java.io.File
 
 object MiscRoutes {
 
-    val validSizes = hashSetOf("thumb", "small", "regular")
+    val validSizes = hashSetOf("thumb", "small", "regular", "profile")
 
 
     // redirects from danielchan.io/instacopy/photos?size=small&id=qwerty to nginx /instacopy/files/small/qwerty.jpg
@@ -21,7 +21,7 @@ object MiscRoutes {
         if (name.isBlank() || sizeParam !in validSizes) {
             halt(404, "Photo ID not found")
         }
-        val folder = File(Main.picFolder, sizeParam)
+        val folder = File(Main.picRoute, sizeParam)
         val file = File(folder, "$name.jpg")
 
         response.header("Content-Type", "image/jpeg")

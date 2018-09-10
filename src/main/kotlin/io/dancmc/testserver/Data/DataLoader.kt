@@ -88,9 +88,9 @@ class DataLoader {
             val uploadDistribution = createBuckets(30000,2000)
             uploadDistribution.forEachIndexed { index, i ->
                 val userUploadMap = HashMap<String,Long>()
-                val timestamp = getRandomTimestamp(start2013, System.currentTimeMillis())
                 for (j in uploadCount until uploadCount+i){
-                    userUploadMap.put(photoList[j].photo_id,timestamp)
+                    // todo originally generated random upload timestamps by mistake
+                    userUploadMap.put(photoList[j].photo_id,photoList[j].timestamp)
                     photoToUserMap.put(photoList[j].photo_id, userList[index].userID)
                 }
                 userUploadMaps.put(userList[index].userID, userUploadMap)
@@ -159,7 +159,6 @@ class DataLoader {
             println("Total Comments : $totalComments")
             println("Wanted Comments : $wantedComments")
             println("Success!")
-
 
 
 

@@ -6,11 +6,19 @@ import com.auth0.jwt.exceptions.TokenExpiredException
 import de.mkammerer.argon2.Argon2Factory
 import org.json.JSONObject
 import spark.Request
-import java.io.BufferedReader
-import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
 import java.util.*
+import java.awt.image.BufferedImage
+import java.awt.image.WritableRaster
+import java.awt.image.ColorModel
+import javax.imageio.ImageIO
+import org.imgscalr.Scalr
+import com.drew.metadata.exif.ExifIFD0Directory
+import com.drew.imaging.ImageMetadataReader
+import org.imgscalr.Scalr.Rotation
+import java.io.*
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
 
 object Utils {
 
@@ -94,7 +102,76 @@ object Utils {
     }
 
     fun constructPhotoUrl(size:String, photoID:String):String{
-        return "${Main.domain}/photos?size=$size&id=$photoID"
+        return "${Main.domain}/static/photos?size=$size&id=$photoID"
+    }
+
+    fun deepCopy(bi: BufferedImage): BufferedImage {
+        val cm = bi.colorModel
+        val isAlphaPremultiplied = cm.isAlphaPremultiplied
+        val raster = bi.copyData(bi.raster.createCompatibleWritableRaster())
+        return BufferedImage(cm, raster, isAlphaPremultiplied, null)
+    }
+
+    fun  handleImage(photoName:String,inputstream:InputStream, profile:Boolean){
+        val temp = File(Main.picFolder, "${UUID.randomUUID()}.jpg")
+        inputstream.use { // getPart needs to use same "name" as input field in form
+            input -> Files.copy(input, temp.toPath(), StandardCopyOption.REPLACE_EXISTING)
+        }
+
+        val sizes = if(profile) listOf(Pair("profile",400))
+        else listOf(Pair("thumb",200),
+                Pair("small",400),
+                Pair("regular",1080))
+
+        sizes.forEach {
+            val originalImage = ImageIO.read(temp)
+            var scaledImg = Scalr.resize(originalImage, it.second)
+
+            // ---- Begin orientation handling ----
+            val metadata = ImageMetadataReader.readMetadata(temp)
+            val exifIFD0Directory = metadata.getFirstDirectoryOfType(ExifIFD0Directory::class.java)
+
+            var orientation = 1
+            try {
+                orientation = exifIFD0Directory.getInt(ExifIFD0Directory.TAG_ORIENTATION)
+            } catch (ex: Exception) {
+                println("no orientation data")
+            }
+
+
+            when (orientation) {
+                1 -> {
+                }
+                2 // Flip X
+                -> scaledImg = Scalr.rotate(scaledImg, Rotation.FLIP_HORZ)
+                3 // PI rotation
+                -> scaledImg = Scalr.rotate(scaledImg, Rotation.CW_180)
+                4 // Flip Y
+                -> scaledImg = Scalr.rotate(scaledImg, Rotation.FLIP_VERT)
+                5 // - PI/2 and Flip X
+                -> {
+                    scaledImg = Scalr.rotate(scaledImg, Rotation.CW_90)
+                    scaledImg = Scalr.rotate(scaledImg, Rotation.FLIP_HORZ)
+                }
+                6 // -PI/2 and -width
+                -> scaledImg = Scalr.rotate(scaledImg, Rotation.CW_90)
+                7 // PI/2 and Flip
+                -> {
+                    scaledImg = Scalr.rotate(scaledImg, Rotation.CW_90)
+                    scaledImg = Scalr.rotate(scaledImg, Rotation.FLIP_VERT)
+                }
+                8 // PI / 2
+                -> scaledImg = Scalr.rotate(scaledImg, Rotation.CW_270)
+                else -> {
+                }
+            }
+            // ---- End orientation handling ----
+
+            // todo write to different folders instead of different names
+//            ImageIO.write(scaledImg, "jpeg", File(Main.picFolder,"$photoName-${it.first}.jpg"))
+            ImageIO.write(scaledImg, "jpeg", File(Main.picFolder+"/${it.first}","$photoName.jpg"))
+        }
+        temp.delete()
     }
 
     object Token {

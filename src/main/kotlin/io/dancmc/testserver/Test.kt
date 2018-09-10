@@ -3,7 +3,7 @@ package io.dancmc.testserver
 class Test {
 
     companion object {
-        fun execute(){
+        fun execute() {
             ImagePuller.getUrls(ImagePuller.accessKey1)
 //            ImagePuller.getPictures("thumb-v2")
 //            println("done")
@@ -168,6 +168,27 @@ class Test {
 //                femalePics.forEach { thumbWriter.appendln(it) }
 //            }
 //            println("here")
+
+
+//            Search executes very fast, on order of less than 10 ms
+//            runBlocking {
+//                while (!Database.initialised){
+//                    delay(1000)
+//                }
+//                val a = System.currentTimeMillis()
+//                val lat = Database.executeTransaction("Test") {
+//                    val n  = it.findNode(Label{"Photo" }, "photo_id", "lEVVHMY50wM")
+//                    return@executeTransaction n.getProperty("latitude")
+//                } as Double
+//                val b = System.currentTimeMillis() - a
+//                println("$b, $lat")
+//                val long  = Database.executeTransaction("Test") {
+//                    val n = it.findNode(Label{"Photo" }, "photo_id", "AbdhYqN8nCs")
+//                    return@executeTransaction n.getProperty("longitude")
+//                } as Double
+//                val c = System.currentTimeMillis() - b - a
+//                println("$c, $long")
+//            }
         }
 
     }

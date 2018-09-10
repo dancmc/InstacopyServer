@@ -33,6 +33,20 @@ dependencies {
     // https://mvnrepository.com/artifact/org.neo4j/neo4j
     compile group: 'org.neo4j', name: 'neo4j', version: '3.4.7'
     compile 'com.auth0:java-jwt:3.2.0'
+    // https://mvnrepository.com/artifact/org.neo4j.procedure/apoc
+    compile group: 'org.neo4j.procedure', name: 'apoc', version: '3.4.0.2'
+    // https://mvnrepository.com/artifact/net.coobird/thumbnailator
+    compile group: 'net.coobird', name: 'thumbnailator', version: '0.4.8'
+
+// https://mvnrepository.com/artifact/org.imgscalr/imgscalr-lib
+    compile group: 'org.imgscalr', name: 'imgscalr-lib', version: '4.2'
+
+// https://mvnrepository.com/artifact/com.drewnoakes/metadata-extractor
+    compile group: 'com.drewnoakes', name: 'metadata-extractor', version: '2.11.0'
+
+
+
+
 
     compile 'org.neo4j.driver:neo4j-java-driver:1.4.4'
     compile 'org.neo4j:neo4j-bolt:3.4.7'
