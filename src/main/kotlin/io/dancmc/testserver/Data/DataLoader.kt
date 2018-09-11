@@ -104,10 +104,9 @@ class DataLoader {
                 val followMap = HashMap<String,Long>()
                 val probability = num/2000.0
                 val sourceID = userList[index].userID
-                val timestamp = getRandomTimestamp(start2013, System.currentTimeMillis())
                 userList.forEach { target->
                     if(rng.nextDouble()<=probability && target.userID!= sourceID){
-                        followMap.put(target.userID, timestamp)
+                        followMap.put(target.userID, getRandomTimestamp(start2013, System.currentTimeMillis()))
                     }
                 }
                 userFollowMaps.put(sourceID, followMap)

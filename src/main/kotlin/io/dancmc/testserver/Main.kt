@@ -1,8 +1,12 @@
 package io.dancmc.testserver
 
 import apoc.cypher.Cypher
+import apoc.text.Strings
+
+import apoc.text.Phonetic
 import apoc.help.Help
 import com.auth0.jwt.interfaces.DecodedJWT
+import io.dancmc.testserver.Data.DataLoader
 import io.dancmc.testserver.Data.Database
 import io.dancmc.testserver.Routes.*
 import kotlinx.coroutines.experimental.delay
@@ -13,8 +17,10 @@ import org.neo4j.graphdb.Node
 import spark.Spark.*
 import org.neo4j.internal.kernel.api.exceptions.KernelException
 import jdk.nashorn.internal.objects.NativeArray.forEach
+import org.json.JSONArray
 import org.neo4j.cypher.internal.compiler.v3_1.CartesianPoint
 import org.neo4j.cypher.internal.compiler.v3_1.Coordinate
+import org.neo4j.driver.v1.util.Functions
 import org.neo4j.graphdb.Result
 import org.neo4j.kernel.impl.proc.Procedures
 import org.neo4j.kernel.internal.GraphDatabaseAPI
@@ -70,9 +76,10 @@ class Main {
                     post("/follow", UserRoutes.follow)
                     post("/unfollow", UserRoutes.unfollow)
                     post("/approve", UserRoutes.approve)
-                    post("/followers", UserRoutes.getFollowers)
-                    post("/following", UserRoutes.getFollowing)
+                    get("/followers", UserRoutes.getFollows(false))
+                    get("/following", UserRoutes.getFollows(true))
                     post("/update", UserRoutes.updateDetails)
+                    get("/getDetails", UserRoutes.getDetails)
                 }
                 get("/feed", FeedRoutes.feed)
                 get("/search", DiscoverRoutes.search)
@@ -127,34 +134,32 @@ class Main {
                     delay(1000)
                 }
 
-                val toRegister = listOf(Help::class.java, Cypher::class.java)
+                val proceduresToRegister = listOf(Help::class.java, Cypher::class.java )
+                val functionsToRegister = listOf(Strings::class.java)
 
                 val procedures = (Database.graphDb as GraphDatabaseAPI).dependencyResolver.resolveDependency(Procedures::class.java)
-                toRegister.forEach { proc ->
+                proceduresToRegister.forEach { proc ->
                     try {
                         procedures.registerProcedure(proc)
                     } catch (e: KernelException) {
                         throw RuntimeException("Error registering $proc", e)
                     }
                 }
+                functionsToRegister.forEach { fn ->
+                    try {
+                        procedures.registerFunction(fn)
+                    } catch (e: KernelException) {
+                        throw RuntimeException("Error registering $fn", e)
+                    }
+                }
+
 
                 val a = System.currentTimeMillis()
 
 
                 Database.executeTransaction {
-                    val userID = "315022a1-3702-4997-9b95-4419caa6e81e"
-                    val photoList = listOf("PyEFH3UWXOA", "hdGyEhAMYdo")
-                    val timestamp = 1441816584440
-                    val paged = true
-
-                    val photoquery = PhotoRoutes.specificPhotoQuery(userID, photoList)
-                    val query = FeedRoutes.distanceQuery(true, userID, 48.41997,-75.1666, true,"",45.887980999999996,-67.99701499999999)
-                    val result = it.execute(photoquery.first, photoquery.second)
-                    Database.processResult(result){
-                        val node = it.get("photo") as Node
-                        println(node.getProperty("caption"))
-                    }
                 }
+
                 val b = System.currentTimeMillis() - a
                 println("$b")
                 Database.executeTransaction {

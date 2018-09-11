@@ -20,13 +20,12 @@ object PhotoRoutes {
     val upload = Route { request, response ->
 
         request.attribute("org.eclipse.jetty.multipartConfig", MultipartConfigElement(""))
-        val caption = request.raw().getPart("caption")?.inputStream?.bufferedReader().use { it?.readText() } ?: ""
-        val latitude = request.raw().getPart("latitude")?.inputStream?.bufferedReader().use { it?.readText() }?.toDoubleOrNull()
-                ?: -99999.9
-        val longitude = request.raw().getPart("longitude")?.inputStream?.bufferedReader().use { it?.readText() }?.toDoubleOrNull()
-                ?: -99999.9
-        val locationName = request.raw().getPart("location_name")?.inputStream?.bufferedReader().use { it?.readText() }
-                ?: ""
+
+        val requestJson = JSONObject(request.raw().getPart("json")?.inputStream?.bufferedReader().use { it?.readText() } ?: "{}")
+        val caption = requestJson.optString("caption","")
+        val latitude = requestJson.optDouble("latitude",-99999.9)
+        val longitude = requestJson.optDouble("longitude",-99999.9)
+        val locationName = requestJson.optString("location_name","")
         val userID = request.attribute("user") as String
 
         if (latitude == -99999.9 || longitude == -99999.9) {
@@ -37,10 +36,10 @@ object PhotoRoutes {
 
         // TODO need to resize pics and also save to database
         Database.executeTransaction("Upload Photos") {
-            var node = it.findNode(Label { "Photo" }, "photo_id", photoID)
+            var node = it.findNode( { "Photo" }, "photo_id", photoID)
             while (node != null) {
                 photoID = UUID.randomUUID().toString()
-                node = it.findNode(Label { "Photo" }, "photo_id", photoID)
+                node = it.findNode( { "Photo" }, "photo_id", photoID)
             }
         }
 
@@ -98,8 +97,8 @@ object PhotoRoutes {
         val userID = request.attribute("user") as String
         val photoIDArray = requestJson.getJSONArray("photo_ids")
         val photoIDList = ArrayList<String>()
-        for (i in 0 until photoIDArray.length()) {
-            photoIDList.add(photoIDArray.getString(i))
+        photoIDArray.forEach {
+            photoIDList.add(it as String)
         }
 
         val json = JSONObject().success()
@@ -168,6 +167,11 @@ object PhotoRoutes {
             val jsonResponse = JSONObject().success()
             val photoNode = Database.graphDb.findNode(Label { "Photo" }, "photo_id", photoID)
             val userNode = Database.graphDb.findNode(Label { "User" }, "user_id", userID)
+
+            if(photoNode==null){
+                return@executeTransaction JSONObject().fail(message = "Photo not found")
+            }
+
             val rel = userNode.createRelationshipTo(photoNode, RelationshipType { "COMMENTED" })
             val commentID = UUID.randomUUID().toString()
             val timestamp = System.currentTimeMillis()
@@ -190,9 +194,11 @@ object PhotoRoutes {
         val commentID = requestJson.optString("comment_id", "")
 
         Database.executeTransaction {
-            val jsonResponse = JSONObject().success()
             val photoNode = Database.graphDb.findNode(Label { "Photo" }, "photo_id", photoID)
-            val userNode = Database.graphDb.findNode(Label { "User" }, "user_id", userID)
+
+            if(photoNode==null){
+                return@executeTransaction JSONObject().fail(message = "Photo not found")
+            }
 
             var deleted = false
             var foundComment = false
@@ -261,31 +267,23 @@ object PhotoRoutes {
             if (recent != null) {
                 recent = Math.max(recent!!, 0)
             }
-            val query = getLikesQuery(userID, photoID, recent != null, lastLikeTime ?: -1L)
+            val query = getLikesQuery(userID, photoID, recent != null, lastLikeTime ?: -1)
             val results = it.execute(query.first, query.second)
+
+            val unfilteredArray = Database.resultToProfileArray(results)
             val array = JSONArray()
-            val list = ArrayList<JSONObject>()
-            Database.processResult(results) {
-                val likeObject = JSONObject()
-                list.add(likeObject)
-                likeObject.put("profile_image", Utils.constructPhotoUrl("profile", it["user_id"] as String))
-                likeObject.put("display_name", it["display_name"] as String)
-                likeObject.put("profile_name", it["profile_name"] as String)
-                likeObject.put("are_following", it["are_following"] as Boolean)
-                likeObject.put("timestamp", it["timestamp"] as Long)
-            }
 
             if (recent != null) {
                 // list contains 50 most recent likes in desc order
                 // want to
-                list.forEachIndexed { index, jsonObject ->
+                unfilteredArray.forEachIndexed { index, jsonObject ->
                     if (index < recent!!) {
-                        array.put(jsonObject)
+                        array.put(jsonObject as JSONObject)
                     }
                 }
             } else {
-                list.forEach {
-                    array.put(it)
+                unfilteredArray.forEach {
+                    array.put(it as JSONObject)
                 }
             }
 
@@ -306,6 +304,10 @@ object PhotoRoutes {
 
             val photoNode = Database.graphDb.findNode(Label { "Photo" }, "photo_id", photoID)
             val userNode = Database.graphDb.findNode(Label { "User" }, "user_id", userID)
+
+            if(photoNode==null){
+                return@executeTransaction JSONObject().fail(message = "Photo not found")
+            }
 
             val rels = photoNode.getRelationships(RelationshipType { "LIKES" }, Direction.INCOMING)
             var isLiked = false
@@ -337,8 +339,12 @@ object PhotoRoutes {
 
         Database.executeTransaction {
 
+            // TODO consider cypher instead
             val photoNode = Database.graphDb.findNode(Label { "Photo" }, "photo_id", photoID)
-            val userNode = Database.graphDb.findNode(Label { "User" }, "user_id", userID)
+
+            if(photoNode==null){
+                return@executeTransaction JSONObject().fail(message = "Photo not found")
+            }
 
             val rels = photoNode.getRelationships(RelationshipType { "LIKES" }, Direction.INCOMING)
             rels.iterator().forEach {

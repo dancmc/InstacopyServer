@@ -12,9 +12,9 @@ import spark.Route
 
 object FeedRoutes {
 
-    fun photoListSub(distance:Boolean, paged:Boolean) :String {
+    fun photoListSub(distance: Boolean, paged: Boolean): String {
         return "MATCH (u1:User{user_id:\$user_id})\n" +
-                "with u1 ${if(distance)",me" else ""}${if(distance&&paged)",lastpt" else ""}\n" +
+                "with u1 ${if (distance) ",me" else ""}${if (distance && paged) ",lastpt" else ""}\n" +
                 "MATCH (u2:User{display_name:\$target_display_name})-[:POSTED]->(p:Photo)\n"
     }
 
@@ -25,8 +25,8 @@ object FeedRoutes {
         params.put("target_display_name", targetDisplayName)
         return Pair(
                 (if (isFeed) "MATCH (u1:User{user_id:\$user_id})-[:FOLLOWS]->(u2), (u2)-[:POSTED]->(p:Photo)\n" else photoListSub(false, paged)) +
-                        (if (paged) "where p.timestamp<\$timestamp\n" else "")+
-                        "with u1,u2, p"  +"\n"  +
+                        (if (paged) "where p.timestamp<\$timestamp\n" else "") +
+                        "with u1,u2, p" + "\n" +
                         "order by p.timestamp desc limit ${Main.pageLimit}\n" +
                         "CALL apoc.cypher.run('optional match (u3)-[l:LIKES]->(p),(u1)-[:FOLLOWS]->(u3)  return u3 limit 2', {p:p,u1:u1}) yield value\n" +
                         "with u1, u2,  p, collect(value.u3.display_name) as like_users\n" +
@@ -50,8 +50,8 @@ object FeedRoutes {
         params.put("target_display_name", targetDisplayName)
         return Pair("with point({longitude:\$my_long,latitude:\$my_lat}) as me\n" +
                 (if (paged) ",point({longitude:\$prev_photo_long,latitude:\$prev_photo_lat}) as lastpt\n" else "") +
-                (if (isFeed) "MATCH (u1:User{user_id:\$user_id})-[:FOLLOWS]->(u2), (u2)-[:POSTED]->(p:Photo)\n" else photoListSub(true, paged))+
-                        "with u1, u2, p"  + ", distance(me,point({longitude:p.longitude, latitude:p.latitude})) as d2\n" +
+                (if (isFeed) "MATCH (u1:User{user_id:\$user_id})-[:FOLLOWS]->(u2), (u2)-[:POSTED]->(p:Photo)\n" else photoListSub(true, paged)) +
+                "with u1, u2, p" + ", distance(me,point({longitude:p.longitude, latitude:p.latitude})) as d2\n" +
                 (if (paged) ",distance(me,lastpt) as d1\n" + "where d2 > d1\n" else "") +
                 "with u1, u2, d2,p order by d2 ascending limit ${Main.pageLimit}\n" +
                 "CALL apoc.cypher.run('optional match (u3)-[l:LIKES]->(p),(u1)-[:FOLLOWS]->(u3)  return u3 limit 2', {p:p,u1:u1}) yield value\n" +
@@ -75,22 +75,21 @@ object FeedRoutes {
         val lastPhotoFetchedID = request.queryParamOrDefault("last_photo_fetched", "")
         val userID = request.attribute("user") as String
 
-        val lastPhotoFetched = if (lastPhotoFetchedID.isNotBlank()) {
-            Database.executeTransaction {
-                it.findNode(Label { "Photo" }, "photo_id", lastPhotoFetchedID)
-            } as Node?
-        } else null
-
-        if (sort !in sortOptions) {
-            return@Route JSONObject().fail(message = "Invalid sort")
-        }
-        if (sort == "location" && (latitude == null || longitude == null)) {
-            return@Route JSONObject().fail(message = "Missing latitude or longitude")
-        }
 
         // If sorting by date with no previous photo
 
         Database.executeTransaction("Fetch Feed") {
+            val lastPhotoFetched= it.findNode(Label { "Photo" }, "photo_id", lastPhotoFetchedID)
+            if(lastPhotoFetchedID.isNotBlank() && lastPhotoFetched==null){
+                return@executeTransaction JSONObject().fail(message = "Invalid last photo")
+            }
+
+            if (sort !in sortOptions) {
+                return@executeTransaction JSONObject().fail(message = "Invalid sort")
+            }
+            if (sort == "location" && (latitude == null || longitude == null)) {
+                return@executeTransaction JSONObject().fail(message = "Missing latitude or longitude")
+            }
 
             var results: Result? = null
 

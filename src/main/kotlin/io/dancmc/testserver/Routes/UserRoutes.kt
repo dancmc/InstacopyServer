@@ -5,10 +5,16 @@ import io.dancmc.testserver.Data.User
 import io.dancmc.testserver.Utils
 import io.dancmc.testserver.fail
 import io.dancmc.testserver.success
+import kotlinx.coroutines.experimental.launch
+import org.json.JSONArray
 import org.json.JSONObject
-import org.neo4j.graphdb.*
+import org.neo4j.graphdb.Label
+import org.neo4j.graphdb.Node
+import org.neo4j.graphdb.RelationshipType
+import org.neo4j.graphdb.Result
 import spark.Route
 import java.util.*
+import javax.servlet.MultipartConfigElement
 
 object UserRoutes {
     val register = Route { request, response ->
@@ -45,15 +51,17 @@ object UserRoutes {
         if (user == null) {
             JSONObject().fail(message = "User not found")
         } else {
-            if (Utils.Password.verifyPassword(user.passwordHash, password)) {
-                JSONObject().success().put("jwt", Utils.Token.createAppToken(user.userID))
-            } else {
-                JSONObject().fail(message = "Wrong password")
+            Database.executeTransaction {
+                if (Utils.Password.verifyPassword(user.getProperty("password_hash") as String, password)) {
+                    JSONObject().success().put("jwt", Utils.Token.createAppToken(user.getProperty("user_id") as String))
+                } else {
+                    JSONObject().fail(message = "Wrong password")
+                }
             }
         }
     }
 
-    fun getInfoQuery(myUserID:String, otherDisplayName:String):Pair<String, HashMap<String, Any>>{
+    fun getInfoQuery(myUserID: String, otherDisplayName: String): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("my_user_id", myUserID)
         params.put("wanted_display_name", otherDisplayName)
@@ -68,7 +76,12 @@ object UserRoutes {
                 "MATCH ()<-[p:POSTED]-(wanted_user) \n" +
                 "with wanted_user, followers, following, my_user_id, count(p) as posted\n" +
                 "MATCH (me:User{user_id:my_user_id})\n" +
-                "return wanted_user, followers, following, posted, EXISTS((me)<-[:FOLLOWS]-(wanted_user)) as following_me, EXISTS((me)-[:FOLLOWS]->(wanted_user)) as are_following, EXISTS((me)-[:REQUESTED]->(wanted_user)) as requested_them, EXISTS((me)<-[:REQUESTED]-(wanted_user)) as requested_me",
+                "Optional MATCH (me)-[:FOLLOWS]->(u1), (u1)-[:FOLLOWS]->(wanted_user)\n" +
+                "return wanted_user.display_name as display_name, wanted_user.user_id as user_id, wanted_user.private as private, " +
+                "wanted_user.profile_desc as profile_desc, wanted_user.profile_name as profile_name, " +
+                "followers, following, posted, EXISTS((me)<-[:FOLLOWS]-(wanted_user)) as following_me, " +
+                "EXISTS((me)-[:FOLLOWS]->(wanted_user)) as are_following, EXISTS((me)-[:REQUESTED]->(wanted_user)) as requested_them, " +
+                "EXISTS((me)<-[:REQUESTED]-(wanted_user)) as requested_me, collect(u1.display_name) as following_following",
                 params)
     }
 
@@ -85,11 +98,10 @@ object UserRoutes {
             val query = getInfoQuery(userID, displayName)
             val results = it.execute(query.first, query.second)
 
-            Database.processResult(results){
-                val themNode = it["wanted_user"] as Node
-                json.put("display_name", themNode.getProperty("display_name") as String)
+            Database.processResult(results) {
+                json.put("display_name", it["display_name"] as String)
                 json.put("number_posts", it["posted"] as Long)
-                json.put("private", themNode.getProperty("private") as Boolean)
+                json.put("private",it["private"] as Boolean)
                 json.put("followers", it["followers"] as Long)
                 json.put("following", it["following"] as Long)
 
@@ -98,21 +110,29 @@ object UserRoutes {
                 val requestedThem = it["requested_them"] as Boolean
                 val requestedMe = it["requested_me"] as Boolean
 
-                json.put("follow_status_to_them", when{
-                    areFollowing->1
-                    requestedThem->2
-                    else ->0
+                json.put("follow_status_to_them", when {
+                    areFollowing -> 1
+                    requestedThem -> 2
+                    else -> 0
                 })
-                json.put("follow_status_to_me", when{
-                    followingYou->1
-                    requestedMe->2
-                    else ->0
+                json.put("follow_status_to_me", when {
+                    followingYou -> 1
+                    requestedMe -> 2
+                    else -> 0
                 })
 
-                val themID = themNode.getProperty("user_id") as String
-                json.put("profile_name", themNode.getProperty("profile_name") as String)
-                json.put("profile_desc", themNode.getProperty("profile_desc") as String)
+                val themID = it["user_id"] as String
+                json.put("profile_name", it["profile_name"] as String)
+                json.put("profile_desc", it["profile_desc"] as String)
                 json.put("profile_image", Utils.constructPhotoUrl("profile", themID))
+                val following = it["following_following"] as ArrayList<String?>
+                val jsonArray = JSONArray()
+                following.forEach {
+                    if(it!=null){
+                        jsonArray.put(it)
+                    }
+                }
+                json.put("following_who_follow", jsonArray)
             }
 
             json
@@ -136,7 +156,7 @@ object UserRoutes {
             } as Node?
         } else null
 
-        if(displayName.isBlank()){
+        if (displayName.isBlank()) {
             return@Route JSONObject().fail(message = "Missing parameters")
         }
 
@@ -163,11 +183,11 @@ object UserRoutes {
                     results = it.execute(query.first, query.second)
                 }
                 sort == "location" && lastPhotoFetched == null -> {
-                    val query = FeedRoutes.distanceQuery(false, userID, isFeed = false, targetDisplayName = displayName,myLat = latitude!!, myLong = longitude!!)
+                    val query = FeedRoutes.distanceQuery(false, userID, isFeed = false, targetDisplayName = displayName, myLat = latitude!!, myLong = longitude!!)
                     results = it.execute(query.first, query.second)
                 }
                 sort == "location" && lastPhotoFetched != null -> {
-                    val query = FeedRoutes.distanceQuery(true, userID, isFeed = false, targetDisplayName = displayName,myLat = latitude!!, myLong = longitude!!
+                    val query = FeedRoutes.distanceQuery(true, userID, isFeed = false, targetDisplayName = displayName, myLat = latitude!!, myLong = longitude!!
                             , prevLat = lastPhotoFetched.getProperty("latitude") as Double, prevLong = lastPhotoFetched.getProperty("longitude") as Double)
                     results = it.execute(query.first, query.second)
                 }
@@ -189,15 +209,15 @@ object UserRoutes {
 
     }
 
-    fun followQuery(userID:String, targetDisplayName:String):Pair<String, HashMap<String, Any>>{
+    fun followQuery(userID: String, targetDisplayName: String): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("user_id", userID)
         params.put("target_display_name", targetDisplayName)
-        return  Pair("MATCH (u1:User{user_id:\$user_id})\n" +
+        return Pair("MATCH (u1:User{user_id:\$user_id})\n" +
                 "with u1\n" +
                 "MATCH (u2:User{display_name:\$target_display_name})\n" +
                 "with u1, u2\n" +
-                "return EXISTS((u1)-[:FOLLOWS]->(u2)) as is_following, EXISTS((u1)-[:REQUESTED]->(u2)) as has_requested, u2.private as is_private", params)
+                "return u2.user_id as other_user_id, EXISTS((u1)-[:FOLLOWS]->(u2)) as is_following, EXISTS((u1)-[:REQUESTED]->(u2)) as has_requested, u2.private as is_private", params)
     }
 
     val follow = Route { request, response ->
@@ -214,28 +234,28 @@ object UserRoutes {
             val otherUserNode = Database.graphDb.findNode(Label { "User" }, "display_name", displayName)
             val userNode = Database.graphDb.findNode(Label { "User" }, "user_id", userID)
 
-            if (otherUserNode == null || userNode==null){
+            if (otherUserNode == null || userNode == null) {
                 return@executeTransaction JSONObject().fail(message = "User does not exist")
             }
 
             val followQuery = followQuery(userID, displayName)
             val results = it.execute(followQuery.first, followQuery.second)
-            var isFollowing=false
-            var hasRequested=false
-            var isPrivate=false
-            Database.processResult(results){
+            var isFollowing = false
+            var hasRequested = false
+            var isPrivate = false
+            Database.processResult(results) {
                 isFollowing = it["is_following"] as Boolean
                 hasRequested = it["has_requested"] as Boolean
                 isPrivate = it["is_private"] as Boolean
             }
 
-            if(isFollowing){
+            if (isFollowing) {
                 return@executeTransaction JSONObject().success().put("result", 2)
             }
-            if(hasRequested){
+            if (hasRequested) {
                 return@executeTransaction JSONObject().success().put("result", 3)
             }
-            if(isPrivate){
+            if (isPrivate) {
                 val rel = userNode.createRelationshipTo(otherUserNode, RelationshipType { "REQUESTED" })
                 rel.setProperty("timestamp", System.currentTimeMillis())
                 return@executeTransaction JSONObject().success().put("result", 1)
@@ -248,11 +268,11 @@ object UserRoutes {
 
     }
 
-    fun unfollowQuery(userID:String, targetDisplayName:String):Pair<String, HashMap<String, Any>>{
+    fun unfollowQuery(userID: String, targetDisplayName: String): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("user_id", userID)
         params.put("target_display_name", targetDisplayName)
-        return  Pair("MATCH (:User{user_id:\$user_id})-[f:FOLLOWS|:REQUESTED]->(:User{display_name:\$target_display_name})\n" +
+        return Pair("MATCH (:User{user_id:\$user_id})-[f:FOLLOWS|:REQUESTED]->(:User{display_name:\$target_display_name})\n" +
                 "Delete f", params)
     }
 
@@ -273,7 +293,7 @@ object UserRoutes {
 
     }
 
-    fun approveQuery(userID:String, targetDisplayName:String, timestamp:Long):Pair<String, HashMap<String, Any>>{
+    fun approveQuery(userID: String, targetDisplayName: String, timestamp: Long): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("user_id", userID)
         params.put("target_display_name", targetDisplayName)
@@ -294,26 +314,184 @@ object UserRoutes {
 
         Database.executeTransaction {
             val timestamp = System.currentTimeMillis()
-            val query = approveQuery(userID, displayName,timestamp)
+            val query = approveQuery(userID, displayName, timestamp)
             it.execute(query.first, query.second)
             return@executeTransaction JSONObject().success()
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
+    }
+
+    fun getFollowersQuery(paging: Boolean, userID: String, targetDisplayName: String, lastFollowerName: String = "", reverse: Boolean = false): Pair<String, HashMap<String, Any>> {
+        val params = hashMapOf<String, Any>()
+        params.put("user_id", userID)
+        params.put("target_display_name", targetDisplayName)
+        params.put("last_follower_name", lastFollowerName)
+        return Pair("with \$user_id as my_id" + (if (paging) ", \$last_follower_name as last_follower_name" else "") + "\n" +
+                "match (me:User{user_id:my_id})\n" +
+                (if (paging) "match (last_follower:User{display_name:last_follower_name})\n" else "") +
+                "match (u1:User{display_name:\$target_display_name})${if (!reverse) "<-[f:FOLLOWS]-" else "-[f:FOLLOWS]->"}(u)\n" +
+                (if (paging) "match (last_follower)${if (!reverse) "-[f1:FOLLOWS]->" else "<-[f1:FOLLOWS]-"}(u1)\n" +
+                        "where f.timestamp>f1.timestamp\n" else "") +
+                "return u.display_name as display_name, u.profile_name as profile_name, " +
+                "u.user_id as user_id,EXISTS((me)-[:FOLLOWS]->(u)) as are_following,  " +
+                "f.timestamp as timestamp order by f.timestamp asc limit 30", params)
+    }
+
+    fun getFollows(reverse: Boolean): Route {
+        return Route { request, response ->
+            val userID = request.attribute("user") as String
+            val displayName = request.queryParamOrDefault("display_name", "")
+            val lastFollowerFetched = request.queryParamOrDefault(if (!reverse) "last_follower_fetched" else "last_following_fetched", "")
+
+            if (displayName.isBlank()) {
+                return@Route JSONObject().fail(message = "Incorrect parameters")
+            }
+
+            Database.executeTransaction {
+
+                val privacyQuery = followQuery(userID, displayName)
+                val privacyResults = it.execute(privacyQuery.first, privacyQuery.second)
+                var isFollowing = false
+                var hasRequested = false
+                var isPrivate = false
+                var otherID = ""
+                Database.processResult(privacyResults) {
+                    otherID = it["other_user_id"] as String
+                    isFollowing = it["is_following"] as Boolean
+                    hasRequested = it["has_requested"] as Boolean
+                    isPrivate = it["is_private"] as Boolean
+                }
+
+                if (userID != otherID && !isFollowing && isPrivate) {
+                    return@executeTransaction JSONObject().fail(message = "User is private")
+                }
+
+                val lastFollower = it.findNode({ "User" }, "display_name", lastFollowerFetched)
+                if (lastFollowerFetched.isNotBlank() && lastFollower == null) {
+                    return@executeTransaction JSONObject().fail(message = "Invalid last follower")
+                }
+
+                val query = getFollowersQuery(lastFollower != null, userID, displayName, (lastFollower?.getProperty("display_name") as String?)
+                        ?: "", reverse = reverse)
+                val array = Database.resultToProfileArray(it.execute(query.first, query.second))
+
+                return@executeTransaction JSONObject().success().put(if (!reverse) "followers" else "following", array)
+
+            } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
+
+        }
+    }
+
+    val getDetails = Route { request, response ->
+        val userID = request.attribute("user") as String
+
+        Database.executeTransaction {
+            val json = JSONObject().success()
+            val userNode = it.findNode({ "User" }, "user_id", userID)
+            Database.userNodeToJson(userID, userNode, json)
+
+            json
+        } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
     }
 
-    val getFollowers = Route { request, response ->
-
-
+    fun approveAllRequestsQuery(userID: String, timestamp:Long): Pair<String, HashMap<String, Any>> {
+        val params = hashMapOf<String, Any>()
+        params.put("user_id", userID)
+        params.put("timestamp", timestamp)
+        return Pair("match (u:User{user_id:\$user_id})<-[r:REQUESTED]-(u1)\n" +
+                "delete r\n" +
+                "create (u)<-[:FOLLOWS{timestamp:\$timestamp}]-(u1)", params)
     }
 
-    val getFollowing = Route { request, response ->
-
-
-    }
 
     val updateDetails = Route { request, response ->
+        request.attribute("org.eclipse.jetty.multipartConfig", MultipartConfigElement(""))
+        val userID = request.attribute("user") as String
 
+        val requestJson = JSONObject(request.raw().getPart("json")?.inputStream?.bufferedReader().use { it?.readText() }
+                ?: "{}")
+
+        Database.executeTransaction {
+            val userNode = it.findNode({ "User" }, "user_id", userID)
+
+            val json = JSONObject().success()
+            val toCommit = HashMap<String, Any>()
+
+            if (requestJson.has("password")) {
+                val password = requestJson.getString("password")
+                if (password.isBlank()) {
+                    return@executeTransaction JSONObject().fail(message = "Password cannot be blank")
+                }
+                toCommit.put("password_hash", Utils.Password.hashPassword(password))
+            }
+            if (requestJson.has("email")) {
+                val email = requestJson.getString("email")
+                if (email.isBlank()) {
+                    return@executeTransaction JSONObject().fail(message = "Email cannot be blank")
+                }
+                val u = it.findNode({ "User" }, "email", email)
+                if (u != null && (u.getProperty("user_id") != userID)) {
+                    return@executeTransaction JSONObject().fail(message = "Email already in use")
+                }
+                toCommit.put("email", email)
+            }
+            if (requestJson.has("first_name")) {
+                val firstName = requestJson.getString("first_name")
+                toCommit.put("first_name", firstName)
+            }
+            if (requestJson.has("last_name")) {
+                val lastName = requestJson.getString("last_name")
+                toCommit.put("last_name", lastName)
+            }
+            if (requestJson.has("display_name")) {
+                val displayName = requestJson.getString("display_name")
+                if (displayName.isBlank()) {
+                    return@executeTransaction JSONObject().fail(message = "Display name cannot be blank")
+                }
+                val u = it.findNode({ "User" }, "display_name", displayName)
+                if (u != null && (u.getProperty("user_id") != userID)) {
+                    return@executeTransaction JSONObject().fail(message = "Display name already in use")
+                }
+                toCommit.put("display_name", displayName)
+            }
+            if (requestJson.has("profile_name")) {
+                val profileName = requestJson.getString("profile_name")
+                toCommit.put("profile_name", profileName)
+            }
+            if (requestJson.has("profile_desc")) {
+                val profileDesc = requestJson.getString("profile_desc")
+                toCommit.put("profile_desc", profileDesc)
+            }
+            if (requestJson.has("is_private")) {
+                val isPrivate = requestJson.getBoolean("is_private")
+                toCommit.put("private", isPrivate)
+            }
+            val wasPrivate = userNode.getProperty("private") as Boolean
+
+            toCommit.forEach { key, value ->
+                userNode.setProperty(key, value)
+            }
+
+            if (toCommit["private"] == false && wasPrivate) {
+                // need to approve all current requests
+                val query = approveAllRequestsQuery(userID, System.currentTimeMillis())
+                it.execute(query.first, query.second)
+            }
+
+            val filepart = request.raw().getPart("profile_image")
+            if (filepart != null) {
+                launch {
+                    Utils.handleImage(userID, filepart.inputStream, true)
+                }
+            }
+
+            Database.userNodeToJson(userID, userNode, json)
+
+            json
+        } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
     }
+
+
 }

@@ -1,7 +1,6 @@
 package io.dancmc.testserver.Data
 
 import io.dancmc.testserver.Utils
-import io.dancmc.testserver.success
 import org.json.JSONArray
 import org.json.JSONObject
 import org.neo4j.graphdb.GraphDatabaseService
@@ -96,14 +95,14 @@ class Database {
             }
         }
 
-        public fun getUser(username: String = "", userID: String = ""): User? {
+        public fun getUser(username: String = "", userID: String = ""): Node? {
             return executeTransaction("Get User") {
                 return@executeTransaction if (userID.isNotBlank()) {
                     graphDb.findNode(Label.label("User"), "user_id", userID)
                 } else {
                     graphDb.findNode(Label.label("User"), "username", username)
                 }
-            } as User?
+            } as Node?
         }
 
         public fun addPropertiesToPhotoNode(photo: Photo, node: Node) {
@@ -346,6 +345,33 @@ class Database {
 
             }
             return array
+        }
+
+        public fun resultToProfileArray(results:Result):JSONArray{
+            val array = JSONArray()
+            val list = ArrayList<JSONObject>()
+            Database.processResult(results) {
+                val profileObject = JSONObject()
+                list.add(profileObject)
+                profileObject.put("profile_image", Utils.constructPhotoUrl("profile", it["user_id"] as String))
+                profileObject.put("display_name", it["display_name"] as String)
+                profileObject.put("profile_name", it["profile_name"] as String)
+                profileObject.put("are_following", it["are_following"] as Boolean)
+                profileObject.put("timestamp", it["timestamp"] as Long)
+                array.put(profileObject)
+            }
+            return array
+        }
+
+        public fun userNodeToJson(userID:String, userNode:Node, json:JSONObject){
+            json.put("email", userNode.getProperty("email") as String)
+            json.put("first_name", userNode.getProperty("first_name") as String)
+            json.put("last_name", userNode.getProperty("last_name") as String)
+            json.put("display_name", userNode.getProperty("display_name") as String)
+            json.put("profile_name", userNode.getProperty("profile_name") as String)
+            json.put("profile_desc", userNode.getProperty("profile_desc") as String)
+            json.put("profile_image", Utils.constructPhotoUrl("profile", userID))
+            json.put("is_private", userNode.getProperty("private") as Boolean)
         }
 
         public fun init() {}
