@@ -1,5 +1,6 @@
 package io.dancmc.instacopy.Data
 
+import io.dancmc.instacopy.Main
 import io.dancmc.instacopy.Utils
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,7 +23,7 @@ class Database {
         val bolt = BoltConnector("0")
         var graphDb = {
             val g = GraphDatabaseFactory()
-                    .newEmbeddedDatabaseBuilder(File("/users/daniel/downloads/social"))
+                    .newEmbeddedDatabaseBuilder(File(Main.databaseLocation))
                     .setConfig(bolt.type, "BOLT")
                     .setConfig(bolt.enabled, "true")
                     .setConfig(bolt.address, "localhost:7687")
