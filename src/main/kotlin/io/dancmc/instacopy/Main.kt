@@ -20,12 +20,12 @@ class Main {
     companion object {
 
         val picRoute = "/instacopy/files"
-                val picFolder = "/users/daniel/downloads/unsplash"
-                val domain = "http://localhost:8080/instacopy/v1"
-        val databaseLocation  = "/users/daniel/downloads/social"
-//        val picFolder = "/var/www/instacopy/photos"
-//        val domain = "https://danielchan.io/instacopy/v1"
-//        val databaseLocation  = "/var/www/instacopy/social"
+//                val picFolder = "/users/daniel/downloads/unsplash"
+//                val domain = "http://localhost:8080/instacopy/v1"
+//        val databaseLocation  = "/users/daniel/downloads/social"
+        val picFolder = "/var/www/instacopy/photos"
+        val domain = "https://danielchan.io/instacopy/v1"
+        val databaseLocation  = "/var/www/instacopy/social"
 
         val pageLimit = 20
 
