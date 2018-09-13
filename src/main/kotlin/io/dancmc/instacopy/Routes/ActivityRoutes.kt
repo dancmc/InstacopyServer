@@ -1,10 +1,10 @@
-package io.dancmc.testserver.Routes
+package io.dancmc.instacopy.Routes
 
-import io.dancmc.testserver.Data.Database
-import io.dancmc.testserver.Data.TemporalEvents.*
-import io.dancmc.testserver.Utils
-import io.dancmc.testserver.fail
-import io.dancmc.testserver.success
+import io.dancmc.instacopy.Data.Database
+import io.dancmc.instacopy.Data.TemporalEvents.*
+import io.dancmc.instacopy.Utils
+import io.dancmc.instacopy.fail
+import io.dancmc.instacopy.success
 import org.json.JSONArray
 import org.json.JSONObject
 import spark.Route

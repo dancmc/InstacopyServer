@@ -1,12 +1,11 @@
-package io.dancmc.testserver.Routes
+package io.dancmc.instacopy.Routes
 
-import io.dancmc.testserver.Data.Database
-import io.dancmc.testserver.Main
-import io.dancmc.testserver.fail
-import io.dancmc.testserver.success
+import io.dancmc.instacopy.Data.Database
+import io.dancmc.instacopy.Main
+import io.dancmc.instacopy.fail
+import io.dancmc.instacopy.success
 import org.json.JSONObject
 import org.neo4j.graphdb.Label
-import org.neo4j.graphdb.Node
 import org.neo4j.graphdb.Result
 import spark.Route
 

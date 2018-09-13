@@ -2,6 +2,8 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel>
+      <module name="instacopy_main" target="1.8" />
+      <module name="instacopy_test" target="1.8" />
       <module name="TestServer_main" target="1.8" />
       <module name="testserver_main" target="1.8" />
       <module name="TestServer_test" target="1.8" />

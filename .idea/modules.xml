@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/testserver.iml" filepath="$PROJECT_DIR$/.idea/modules/testserver.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/testserver_main.iml" filepath="$PROJECT_DIR$/.idea/modules/testserver_main.iml" group="testserver" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/testserver_test.iml" filepath="$PROJECT_DIR$/.idea/modules/testserver_test.iml" group="testserver" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/instacopy.iml" filepath="$PROJECT_DIR$/.idea/modules/instacopy.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/instacopy_main.iml" filepath="$PROJECT_DIR$/.idea/modules/instacopy_main.iml" group="instacopy" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/instacopy_test.iml" filepath="$PROJECT_DIR$/.idea/modules/instacopy_test.iml" group="instacopy" />
     </modules>
   </component>
 </project>

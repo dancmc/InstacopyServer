@@ -1,6 +1,6 @@
-package io.dancmc.testserver.Data
+package io.dancmc.instacopy.Data
 
-import io.dancmc.testserver.Utils
+import io.dancmc.instacopy.Utils
 import org.json.JSONArray
 import org.json.JSONObject
 import org.neo4j.graphdb.GraphDatabaseService
@@ -315,7 +315,9 @@ class Database {
                 photoObject.put("profile_image", Utils.constructPhotoUrl("profile", posterID))
                 val photoID = photoNode.getProperty("photo_id") as String
                 photoObject.put("photo_id", photoID)
-                photoObject.put("url", JSONObject().put("regular", Utils.constructPhotoUrl("regular", photoID)))
+                photoObject.put("url", JSONObject()
+                        .put("regular", Utils.constructPhotoUrl("regular", photoID))
+                        .put("small", Utils.constructPhotoUrl("small", photoID)))
                 val previewCommentsArray = JSONArray()
                 previewComments.forEach {
                     val commenterName = it["commenter_name"]

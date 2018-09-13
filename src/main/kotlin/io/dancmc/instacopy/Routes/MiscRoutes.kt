@@ -1,6 +1,6 @@
-package io.dancmc.testserver.Routes
+package io.dancmc.instacopy.Routes
 
-import io.dancmc.testserver.Main
+import io.dancmc.instacopy.Main
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.json.JSONObject

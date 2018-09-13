@@ -1,4 +1,4 @@
-package io.dancmc.testserver
+package io.dancmc.instacopy
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
@@ -8,8 +8,6 @@ import org.json.JSONObject
 import spark.Request
 import java.util.*
 import java.awt.image.BufferedImage
-import java.awt.image.WritableRaster
-import java.awt.image.ColorModel
 import javax.imageio.ImageIO
 import org.imgscalr.Scalr
 import com.drew.metadata.exif.ExifIFD0Directory
@@ -18,6 +16,7 @@ import org.imgscalr.Scalr.Rotation
 import java.io.*
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import kotlin.collections.ArrayList
 
 
 object Utils {
@@ -167,7 +166,7 @@ object Utils {
             }
             // ---- End orientation handling ----
 
-            // todo write to different folders instead of different names
+
 //            ImageIO.write(scaledImg, "jpeg", File(Main.picFolder,"$photoName-${it.first}.jpg"))
             ImageIO.write(scaledImg, "jpeg", File(Main.picFolder+"/${it.first}","$photoName.jpg"))
         }
@@ -208,6 +207,12 @@ object Utils {
         }
 
     }
+
+    fun randomSublist(list:MutableList<*>, elements: Int):MutableList<*>{
+        val newList = ArrayList(list)
+        newList.shuffle()
+        return newList.subList(0, Math.min(elements, list.size))
+    }
 }
 
 fun Request.decodeToken(): Any {
@@ -232,3 +237,7 @@ fun JSONObject.fail(code: Int = -1, message: String = ""): JSONObject {
 fun JSONObject.success(): JSONObject {
     return this.put("success", true)
 }
+
+fun ClosedRange<Int>.random() =
+        Random().nextInt((endInclusive + 1) - start) +  start
+

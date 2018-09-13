@@ -68,14 +68,14 @@ compileTestKotlin {
 jar {
     manifest {
         attributes(
-                "Main-Class": "io.dancmc.testserver.Main"
+                "Main-Class": "io.dancmc.instacopy.Main"
         )
     }
 }
 
 task fatJar(type: Jar) {
     manifest.from jar.manifest
-    baseName 'TestServer'
+    baseName 'Instacopy'
     version= ""
     from {
         configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }

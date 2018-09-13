@@ -1,4 +1,4 @@
-package io.dancmc.testserver.Data
+package io.dancmc.instacopy.Data
 
 data class User(
         var userID:String,

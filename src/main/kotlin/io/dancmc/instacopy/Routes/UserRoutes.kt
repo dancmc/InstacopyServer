@@ -1,10 +1,10 @@
-package io.dancmc.testserver.Routes
+package io.dancmc.instacopy.Routes
 
-import io.dancmc.testserver.Data.Database
-import io.dancmc.testserver.Data.User
-import io.dancmc.testserver.Utils
-import io.dancmc.testserver.fail
-import io.dancmc.testserver.success
+import io.dancmc.instacopy.Data.Database
+import io.dancmc.instacopy.Data.User
+import io.dancmc.instacopy.Utils
+import io.dancmc.instacopy.fail
+import io.dancmc.instacopy.success
 import kotlinx.coroutines.experimental.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -69,11 +69,11 @@ object UserRoutes {
         return Pair("with \$wanted_display_name as wanted_display_name, \$my_user_id as my_user_id\n" +
                 "MATCH (u:User{display_name:wanted_display_name})\n" +
                 "with u as wanted_user, my_user_id\n" +
-                "MATCH ()-[f:FOLLOWS]->(wanted_user) \n" +
+                "Optional MATCH ()-[f:FOLLOWS]->(wanted_user) \n" +
                 "with wanted_user, count(f) as followers, my_user_id\n" +
-                "MATCH ()<-[f:FOLLOWS]-(wanted_user) \n" +
+                "optional MATCH ()<-[f:FOLLOWS]-(wanted_user) \n" +
                 "with wanted_user, followers, count(f) as following, my_user_id\n" +
-                "MATCH ()<-[p:POSTED]-(wanted_user) \n" +
+                "optional MATCH ()<-[p:POSTED]-(wanted_user) \n" +
                 "with wanted_user, followers, following, my_user_id, count(p) as posted\n" +
                 "MATCH (me:User{user_id:my_user_id})\n" +
                 "Optional MATCH (me)-[:FOLLOWS]->(u1), (u1)-[:FOLLOWS]->(wanted_user)\n" +

@@ -1,6 +1,6 @@
-package io.dancmc.testserver
+package io.dancmc.instacopy
 
-import io.dancmc.testserver.Data.User
+import io.dancmc.instacopy.Data.User
 import kotlinx.coroutines.experimental.*
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient

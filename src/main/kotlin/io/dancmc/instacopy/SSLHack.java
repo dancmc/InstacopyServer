@@ -1,4 +1,4 @@
-package io.dancmc.testserver;
+package io.dancmc.instacopy;
 
 import okhttp3.*;
 

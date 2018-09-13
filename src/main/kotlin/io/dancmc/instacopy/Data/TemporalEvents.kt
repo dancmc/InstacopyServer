@@ -1,4 +1,4 @@
-package io.dancmc.testserver.Data
+package io.dancmc.instacopy.Data
 
 class TemporalEvents {
 

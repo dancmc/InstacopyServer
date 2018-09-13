@@ -1,8 +1,8 @@
-package io.dancmc.testserver.Data
+package io.dancmc.instacopy.Data
 
 import com.javadocmd.simplelatlng.LatLng
-import io.dancmc.testserver.ImagePuller
-import io.dancmc.testserver.Utils
+import io.dancmc.instacopy.ImagePuller
+import io.dancmc.instacopy.Utils
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
@@ -89,7 +89,6 @@ class DataLoader {
             uploadDistribution.forEachIndexed { index, i ->
                 val userUploadMap = HashMap<String,Long>()
                 for (j in uploadCount until uploadCount+i){
-                    // todo originally generated random upload timestamps by mistake
                     userUploadMap.put(photoList[j].photo_id,photoList[j].timestamp)
                     photoToUserMap.put(photoList[j].photo_id, userList[index].userID)
                 }

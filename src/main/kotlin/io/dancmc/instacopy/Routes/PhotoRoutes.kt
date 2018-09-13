@@ -1,10 +1,10 @@
-package io.dancmc.testserver.Routes
+package io.dancmc.instacopy.Routes
 
-import io.dancmc.testserver.Data.Database
-import io.dancmc.testserver.Data.Photo
-import io.dancmc.testserver.Utils
-import io.dancmc.testserver.fail
-import io.dancmc.testserver.success
+import io.dancmc.instacopy.Data.Database
+import io.dancmc.instacopy.Data.Photo
+import io.dancmc.instacopy.Utils
+import io.dancmc.instacopy.fail
+import io.dancmc.instacopy.success
 import kotlinx.coroutines.experimental.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -34,7 +34,7 @@ object PhotoRoutes {
 
         var photoID = UUID.randomUUID().toString()
 
-        // TODO need to resize pics and also save to database
+
         Database.executeTransaction("Upload Photos") {
             var node = it.findNode( { "Photo" }, "photo_id", photoID)
             while (node != null) {
