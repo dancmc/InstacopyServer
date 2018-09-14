@@ -1,6 +1,7 @@
 package io.dancmc.instacopy.Data
 
 import io.dancmc.instacopy.Main
+import io.dancmc.instacopy.Routes.UserRoutes
 import io.dancmc.instacopy.Utils
 import org.json.JSONArray
 import org.json.JSONObject
@@ -13,6 +14,7 @@ import org.neo4j.graphdb.factory.GraphDatabaseFactory
 import org.neo4j.kernel.configuration.BoltConnector
 import java.io.File
 import java.util.*
+import kotlin.collections.HashMap
 
 class Database {
 
@@ -375,6 +377,33 @@ class Database {
             json.put("profile_desc", userNode.getProperty("profile_desc") as String)
             json.put("profile_image", Utils.constructPhotoUrl("profile", userID))
             json.put("is_private", userNode.getProperty("private") as Boolean)
+        }
+
+        fun privacyCheck(userID: String, targetDisplayName: String): HashMap<String, Any>? {
+            val params = hashMapOf<String, Any>()
+            params.put("user_id", userID)
+            params.put("target_display_name", targetDisplayName)
+
+
+            return executeTransaction {
+                val results = it.execute("MATCH (u1:User{user_id:\$user_id})\n" +
+                        "with u1\n" +
+                        "MATCH (u2:User{display_name:\$target_display_name})\n" +
+                        "with u1, u2\n" +
+                        "return u2.user_id as other_user_id, EXISTS((u1)-[:FOLLOWS]->(u2)) as is_following, EXISTS((u1)-[:REQUESTED]->(u2)) as has_requested, u2.private as is_private", params)
+
+                val hashMap = HashMap<String,Any>()
+                Database.processResult(results) {
+                    hashMap.put("isFollowing", it["is_following"]!!)
+                    hashMap.put("hasRequested", it["has_requested"]!!)
+                    hashMap.put("isPrivate", it["is_private"]!!)
+                    hashMap.put("otherID", it["other_user_id"]!!)
+                }
+
+
+                return@executeTransaction hashMap
+            } as HashMap<String, Any>?
+
         }
 
         public fun init() {}

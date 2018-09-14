@@ -167,6 +167,23 @@ object UserRoutes {
             return@Route JSONObject().fail(message = "Missing latitude or longitude")
         }
 
+        var isFollowing = false
+        var hasRequested = false
+        var isPrivate = false
+
+        val privacy = Database.privacyCheck(userID, displayName)
+        if(privacy!=null){
+            isFollowing = privacy["isFollowing"] as Boolean
+            hasRequested = privacy["hasRequested"] as Boolean
+            isPrivate = privacy["isPrivate"] as Boolean
+        } else {
+            return@Route JSONObject().fail(message = "User does not exist")
+        }
+
+        if(isPrivate && !isFollowing){
+            return@Route JSONObject().fail(code = Errors.PRIVACY, message = "User is private")
+        }
+
         // If sorting by date with no previous photo
 
         Database.executeTransaction("Fetch User Photos") {
@@ -229,6 +246,17 @@ object UserRoutes {
             return@Route JSONObject().fail(message = "Incorrect parameters")
         }
 
+        var isFollowing = false
+        var hasRequested = false
+        var isPrivate = false
+
+        val privacy = Database.privacyCheck(userID, displayName)
+        if(privacy!=null){
+            isFollowing = privacy["isFollowing"] as Boolean
+            hasRequested = privacy["hasRequested"] as Boolean
+            isPrivate = privacy["isPrivate"] as Boolean
+        }
+
         Database.executeTransaction {
 
             val otherUserNode = Database.graphDb.findNode(Label { "User" }, "display_name", displayName)
@@ -236,17 +264,6 @@ object UserRoutes {
 
             if (otherUserNode == null || userNode == null) {
                 return@executeTransaction JSONObject().fail(message = "User does not exist")
-            }
-
-            val followQuery = followQuery(userID, displayName)
-            val results = it.execute(followQuery.first, followQuery.second)
-            var isFollowing = false
-            var hasRequested = false
-            var isPrivate = false
-            Database.processResult(results) {
-                isFollowing = it["is_following"] as Boolean
-                hasRequested = it["has_requested"] as Boolean
-                isPrivate = it["is_private"] as Boolean
             }
 
             if (isFollowing) {
@@ -347,23 +364,25 @@ object UserRoutes {
                 return@Route JSONObject().fail(message = "Incorrect parameters")
             }
 
+            var isFollowing = false
+            var hasRequested = false
+            var isPrivate = false
+            var otherID = ""
+
+            val privacy = Database.privacyCheck(userID, displayName)
+            if(privacy!=null){
+                isFollowing = privacy["isFollowing"] as Boolean
+                hasRequested = privacy["hasRequested"] as Boolean
+                isPrivate = privacy["isPrivate"] as Boolean
+                otherID = privacy["otherID"] as String
+            }else {
+                return@Route JSONObject().fail(message = "User does not exist")
+            }
+
             Database.executeTransaction {
 
-                val privacyQuery = followQuery(userID, displayName)
-                val privacyResults = it.execute(privacyQuery.first, privacyQuery.second)
-                var isFollowing = false
-                var hasRequested = false
-                var isPrivate = false
-                var otherID = ""
-                Database.processResult(privacyResults) {
-                    otherID = it["other_user_id"] as String
-                    isFollowing = it["is_following"] as Boolean
-                    hasRequested = it["has_requested"] as Boolean
-                    isPrivate = it["is_private"] as Boolean
-                }
-
                 if (userID != otherID && !isFollowing && isPrivate) {
-                    return@executeTransaction JSONObject().fail(message = "User is private")
+                    return@executeTransaction JSONObject().fail(code = Errors.PRIVACY, message = "User is private")
                 }
 
                 val lastFollower = it.findNode({ "User" }, "display_name", lastFollowerFetched)

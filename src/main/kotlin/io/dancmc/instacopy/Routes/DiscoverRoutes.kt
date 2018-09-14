@@ -158,7 +158,7 @@ object DiscoverRoutes {
         params.put("regexp", "[$regexp].*")
 
         return Pair("match (me:User{user_id:\$user_id}) \n" +
-                "match (u1)-[:POSTED]->(p) where not (me)-[:FOLLOWS]->(u1) ${if (followingFollowing) "and (me)-[:FOLLOWS*2]->(u1)" else ""} " +
+                "match (u1)-[:POSTED]->(p) where not (me)-[:FOLLOWS]->(u1) and not u1.private ${if (followingFollowing) "and (me)-[:FOLLOWS*2]->(u1)" else ""} " +
                 "and  p.photo_id =~ \$regexp and not (u1)=(me)\n" +
                 "return p.photo_id as photo_id skip \$skip limit 40", params)
     }
