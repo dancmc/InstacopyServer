@@ -1,15 +1,10 @@
 package io.dancmc.instacopy.Data
 
 import io.dancmc.instacopy.Main
-import io.dancmc.instacopy.Routes.UserRoutes
 import io.dancmc.instacopy.Utils
 import org.json.JSONArray
 import org.json.JSONObject
-import org.neo4j.graphdb.GraphDatabaseService
-import org.neo4j.graphdb.Label
-import org.neo4j.graphdb.Node
-import org.neo4j.graphdb.RelationshipType
-import org.neo4j.graphdb.Result
+import org.neo4j.graphdb.*
 import org.neo4j.graphdb.factory.GraphDatabaseFactory
 import org.neo4j.kernel.configuration.BoltConnector
 import java.io.File
@@ -65,23 +60,31 @@ class Database {
         public fun addUser(user: User): Pair<Boolean, String> {
 
             val result = executeTransaction("Add User") {
-                val userFromDb = graphDb.findNode(Label.label("User"), "username", user.username)
-                if (userFromDb == null) {
-                    val userNode = graphDb.createNode(Label.label("User"))
-                    val uuid = graphDb.findNode(Label.label("User"), "user_id", user.userID)
-                    if (uuid != null) {
-                        user.userID = UUID.randomUUID().toString()
-                    }
-                    addPropertiesToUserNode(user, userNode)
-                    return@executeTransaction true
-                } else {
-                    return@executeTransaction false
+                var userFromDb = graphDb.findNode(Label.label("User"), "username", user.username)
+                if(userFromDb!=null){
+                    return@executeTransaction "Username already exists"
                 }
+                userFromDb = graphDb.findNode(Label.label("User"), "display_name", user.displayName)
+                if(userFromDb!=null){
+                    return@executeTransaction "Display name already exists"
+                }
+                userFromDb = graphDb.findNode(Label.label("User"), "email", user.email)
+                if(userFromDb!=null){
+                    return@executeTransaction "Email already exists"
+                }
+
+                val userNode = graphDb.createNode(Label.label("User"))
+                val uuid = graphDb.findNode(Label.label("User"), "user_id", user.userID)
+                if (uuid != null) {
+                    user.userID = UUID.randomUUID().toString()
+                }
+                addPropertiesToUserNode(user, userNode)
+                return@executeTransaction true
             }
             when (result) {
                 null -> return Pair(false, "DB Failure")
                 true -> return Pair(true, user.userID)
-                false -> return Pair(false, "Username already exists")
+                is String -> return Pair(false, result)
                 else -> return Pair(false, "")
             }
         }
@@ -115,9 +118,15 @@ class Database {
             node.setProperty("location_name", photo.location_name)
             node.setProperty("latitude", photo.latitude)
             node.setProperty("longitude", photo.longitude)
+            node.setProperty("thumb_width", photo.thumbSize.first)
+            node.setProperty("thumb_height", photo.thumbSize.second)
+            node.setProperty("small_width", photo.smallSize.first)
+            node.setProperty("small_height", photo.smallSize.second)
+            node.setProperty("regular_width", photo.regularSize.first)
+            node.setProperty("regular_height", photo.regularSize.second)
         }
 
-        public fun addPhoto(userID:String, photo: Photo, timestamp:Long): Pair<Boolean, String> {
+        public fun addPhoto(userID: String, photo: Photo, timestamp: Long): Pair<Boolean, String> {
 
             val result = executeTransaction("Add Photo") {
                 val userFromDb = graphDb.findNode(Label.label("User"), "user_id", userID)
@@ -125,7 +134,7 @@ class Database {
                 if (photoFromDb == null) {
                     val photoNode = graphDb.createNode(Label.label("Photo"))
                     addPropertiesToPhotoNode(photo, photoNode)
-                    val rel= userFromDb.createRelationshipTo(photoNode, RelationshipType { "POSTED" })
+                    val rel = userFromDb.createRelationshipTo(photoNode, RelationshipType { "POSTED" })
                     rel.setProperty("timestamp", timestamp)
                     return@executeTransaction true
                 } else {
@@ -152,6 +161,12 @@ class Database {
                         photo.setProperty("location_name", it.location_name)
                         photo.setProperty("latitude", it.latitude)
                         photo.setProperty("longitude", it.longitude)
+                        photo.setProperty("thumb_width", it.thumbSize.first)
+                        photo.setProperty("thumb_height", it.thumbSize.second)
+                        photo.setProperty("small_width", it.smallSize.first)
+                        photo.setProperty("small_height", it.smallSize.second)
+                        photo.setProperty("regular_width", it.regularSize.first)
+                        photo.setProperty("regular_height", it.regularSize.second)
                     }
                 }
             }
@@ -296,19 +311,19 @@ class Database {
 
         }
 
-        public fun resultToPhotoArray(results:Result):JSONArray{
+        public fun resultToPhotoArray(results: Result): JSONArray {
 
             val array = JSONArray()
-            Database.processResult(results){
+            Database.processResult(results) {
 
                 val photoObject = JSONObject()
                 array.put(photoObject)
                 val photoNode = it["photo"] as Node
                 val posterID = it["poster_id"] as String
                 val posterName = it["poster_name"] as String
-                val previewLikeUsers =it["like_users"]!! as ArrayList<String?>
-                val previewComments =it["comment_previews"]!! as ArrayList<HashMap<String?, String?>>
-                photoObject.put("distance",it["distance"] as Double? ?:-1.0)
+                val previewLikeUsers = it["like_users"]!! as ArrayList<String?>
+                val previewComments = it["comment_previews"]!! as ArrayList<HashMap<String?, String?>>
+                photoObject.put("distance", it["distance"] as Double? ?: -1.0)
                 val totalLikes = it["total_likes"] as Long
                 val totalComments = it["total_comments"] as Long
                 val isLiked = it["is_liked"] as Boolean
@@ -317,34 +332,46 @@ class Database {
                 photoObject.put("display_name", posterName)
                 photoObject.put("profile_image", Utils.constructPhotoUrl("profile", posterID))
                 val photoID = photoNode.getProperty("photo_id") as String
+                val smallWidth = photoNode.getProperty("small_width") as Int
+                val smallHeight = photoNode.getProperty("small_height") as Int
+                val regularWidth = photoNode.getProperty("regular_width") as Int
+                val regularHeight = photoNode.getProperty("regular_height") as Int
                 photoObject.put("photo_id", photoID)
+                val smallObject = JSONObject()
+                        .put("link",Utils.constructPhotoUrl("small", photoID))
+                        .put("width", smallWidth)
+                        .put("height", smallHeight)
+                val regularObject = JSONObject()
+                        .put("link",Utils.constructPhotoUrl("regular", photoID))
+                        .put("width", regularWidth)
+                        .put("height", regularHeight)
                 photoObject.put("url", JSONObject()
-                        .put("regular", Utils.constructPhotoUrl("regular", photoID))
-                        .put("small", Utils.constructPhotoUrl("small", photoID)))
+                        .put("regular", regularObject)
+                        .put("small", smallObject))
                 val previewCommentsArray = JSONArray()
                 previewComments.forEach {
                     val commenterName = it["commenter_name"]
                     val commentText = it["comment_text"]
-                    if(commenterName!=null && commentText!=null) {
+                    if (commenterName != null && commentText != null) {
                         val previewCommentObject = JSONObject()
                         previewCommentObject.put("display_name", commenterName)
                         previewCommentObject.put("text", commentText)
                         previewCommentsArray.put(previewCommentObject)
                     }
                 }
-                photoObject.put("preview_comments", JSONObject().put("preview_text",previewCommentsArray).put("total_comments", totalComments))
+                photoObject.put("preview_comments", JSONObject().put("preview_text", previewCommentsArray).put("total_comments", totalComments))
                 photoObject.put("is_liked", isLiked)
                 val previewLikesArray = JSONArray()
                 previewLikeUsers.forEach {
-                    if (it!=null){
+                    if (it != null) {
                         previewLikesArray.put(it)
                     }
                 }
                 photoObject.put("preview_likes", JSONObject().put("preview_names", previewLikesArray).put("total_likes", totalLikes))
                 photoObject.put("location", JSONObject()
                         .put("location_name", photoNode.getProperty("location_name") as String)
-                        .put("latitude", photoNode.getProperty("latitude") as Double)
-                        .put("longitude", photoNode.getProperty("longitude") as Double))
+                        .put("latitude", photoNode.getProperty("latitude", 999.0) as Double?)
+                        .put("longitude", photoNode.getProperty("longitude", 999.0) as Double?))
                 photoObject.put("timestamp", photoNode.getProperty("timestamp") as Long)
                 photoObject.put("caption", photoNode.getProperty("caption") as String)
 
@@ -352,7 +379,7 @@ class Database {
             return array
         }
 
-        public fun resultToProfileArray(results:Result):JSONArray{
+        public fun resultToProfileArray(results: Result): JSONArray {
             val array = JSONArray()
             val list = ArrayList<JSONObject>()
             Database.processResult(results) {
@@ -368,7 +395,7 @@ class Database {
             return array
         }
 
-        public fun userNodeToJson(userID:String, userNode:Node, json:JSONObject){
+        public fun userNodeToJson(userID: String, userNode: Node, json: JSONObject) {
             json.put("email", userNode.getProperty("email") as String)
             json.put("first_name", userNode.getProperty("first_name") as String)
             json.put("last_name", userNode.getProperty("last_name") as String)
@@ -392,7 +419,7 @@ class Database {
                         "with u1, u2\n" +
                         "return u2.user_id as other_user_id, EXISTS((u1)-[:FOLLOWS]->(u2)) as is_following, EXISTS((u1)-[:REQUESTED]->(u2)) as has_requested, u2.private as is_private", params)
 
-                val hashMap = HashMap<String,Any>()
+                val hashMap = HashMap<String, Any>()
                 Database.processResult(results) {
                     hashMap.put("isFollowing", it["is_following"]!!)
                     hashMap.put("hasRequested", it["has_requested"]!!)

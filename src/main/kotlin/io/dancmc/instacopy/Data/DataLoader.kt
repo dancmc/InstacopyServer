@@ -3,6 +3,7 @@ package io.dancmc.instacopy.Data
 import com.javadocmd.simplelatlng.LatLng
 import io.dancmc.instacopy.ImagePuller
 import io.dancmc.instacopy.Utils
+import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
@@ -43,11 +44,23 @@ class DataLoader {
             // deal with photos
             val photoList = ArrayList<Photo>()
             val photoTsvToWrite = ArrayList<String>()
+
+
             thumbHashMap.forEach { id, thumbUrl ->
 
                 if(photoList.size>=30000){
                     return@forEach
                 }
+
+                val thumbFile = File("/users/daniel/downloads/unsplash/thumb/$id.jpg")
+                if(!thumbFile.exists()){
+                    return@forEach
+                }
+                val thumbDimen = Utils.readDimensions(thumbFile)
+                val smallFile = File("/users/daniel/downloads/unsplash/small/$id.jpg")
+                val smallDimen = Utils.readDimensions(smallFile)
+                val regularFile = File("/users/daniel/downloads/unsplash/regular/$id.jpg")
+                val regularDimen = Utils.readDimensions(regularFile)
 
                 val photoID = id
                 val caption = quoteList.pop()[0]
@@ -60,7 +73,8 @@ class DataLoader {
 
                 val smallUrl = smallHashMap[id]
                 val regularUrl = smallHashMap[id]
-                photoList.add(Photo(photo_id = photoID, caption = caption, timestamp = timeStamp, location_name = locationName, longitude = longitude, latitude = latitude))
+                photoList.add(Photo(photo_id = photoID, caption = caption, timestamp = timeStamp, location_name = locationName,
+                        longitude = longitude, latitude = latitude, thumbSize = thumbDimen, smallSize = smallDimen, regularSize = regularDimen))
                 photoTsvToWrite.add("$id\t$caption\t$timeStamp\t$locationName\t$latitude\t$longitude\t$thumbUrl\t$smallUrl\t$regularUrl")
             }
             Utils.write(unifiedPhotoTsv, photoTsvToWrite)

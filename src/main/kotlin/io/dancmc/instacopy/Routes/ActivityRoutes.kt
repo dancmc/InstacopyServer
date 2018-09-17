@@ -138,7 +138,8 @@ object ActivityRoutes {
                     firstEvent is CommentTemporalEvent -> {
                         eventObject.put("type", 3)
                         eventObject.put("photo_id", firstEvent.photoID)
-                        eventObject.put("url", JSONObject().put("thumb", Utils.constructPhotoUrl("thumb", firstEvent.photoID)))
+                        val thumbJson = JSONObject().put("link", Utils.constructPhotoUrl("thumb", firstEvent.photoID))
+                        eventObject.put("url", JSONObject().put("thumb", thumbJson))
                         eventObject.put("recent_comments", eventList.size)
                         eventObject.put("preview_comment", JSONObject()
                                 .put("display_name", firstEvent.commenterName)
@@ -148,7 +149,8 @@ object ActivityRoutes {
                     firstEvent is LikeTemporalEvent -> {
                         eventObject.put("type", 2)
                         eventObject.put("photo_id", firstEvent.photoID)
-                        eventObject.put("url", JSONObject().put("thumb", Utils.constructPhotoUrl("thumb", firstEvent.photoID)))
+                        val thumbJson = JSONObject().put("link", Utils.constructPhotoUrl("thumb", firstEvent.photoID))
+                        eventObject.put("url", JSONObject().put("thumb", thumbJson))
                         eventObject.put("recent_likes", eventList.size)
 
                         val previewArray = JSONArray()
@@ -319,7 +321,8 @@ object ActivityRoutes {
                                 val event = baseTemporalEvent as LikeTemporalEvent
                                 val photoObject = JSONObject()
                                 photoObject.put("photo_id", event.photoID)
-                                photoObject.put("url", JSONObject().put("url", JSONObject().put("thumb", Utils.constructPhotoUrl("thumb", event.photoID))))
+                                val thumbJson = JSONObject().put("link", Utils.constructPhotoUrl("thumb", event.photoID))
+                                photoObject.put("url", JSONObject().put("thumb", thumbJson))
                                 likedPhotos.put(photoObject)
                             }
                         }
@@ -330,7 +333,8 @@ object ActivityRoutes {
                         eventObject.put("type", 2)
                         eventObject.put("photo_id", firstEvent.photoID)
                         eventObject.put("total_liked", eventList.size)
-                        eventObject.put("url", JSONObject().put("url", JSONObject().put("thumb", Utils.constructPhotoUrl("thumb", firstEvent.photoID))))
+                        val thumbJson = JSONObject().put("link", Utils.constructPhotoUrl("thumb", firstEvent.photoID))
+                        eventObject.put("url", JSONObject().put("thumb", thumbJson))
                         val usersWhoLiked = JSONArray()
                         eventList.forEachIndexed { index, baseTemporalEvent->
                             if(index<3){

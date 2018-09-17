@@ -4,6 +4,7 @@ import apoc.cypher.Cypher
 import apoc.help.Help
 import apoc.text.Strings
 import com.auth0.jwt.interfaces.DecodedJWT
+import io.dancmc.instacopy.Data.DataLoader
 import io.dancmc.instacopy.Data.Database
 import io.dancmc.instacopy.Routes.*
 import kotlinx.coroutines.experimental.delay
@@ -23,9 +24,12 @@ class Main {
 //                val picFolder = "/users/daniel/downloads/unsplash"
 //                val domain = "http://localhost:8080/instacopy/v1"
 //        val databaseLocation  = "/users/daniel/downloads/social"
-        val picFolder = "/var/www/instacopy/photos"
-        val domain = "https://danielchan.io/instacopy/v1"
-        val databaseLocation  = "/var/www/instacopy/social"
+        val picFolder = "/mnt/www/instacopy/photos"
+        val domain = "https://dancmc.io/instacopy/v1"
+        val databaseLocation  = "/mnt/www/instacopy/social"
+//        val picFolder = "/var/www/instacopy/photos"
+//        val domain = "https://danielchan.io/instacopy/v1"
+//        val databaseLocation  = "/var/www/instacopy/social"
 
         val pageLimit = 20
 
@@ -45,7 +49,9 @@ class Main {
                     tokenDecode is JSONObject -> {
                         // TODO remember to change this
 //                        request.attribute("user", "315022a1-3702-4997-9b95-4419caa6e81e")
-                        halt(401, tokenDecode.toString())
+                        if(request.pathInfo().contains("/user/login") && request.pathInfo().contains("/user/register")) {
+                            halt(401, tokenDecode.toString())
+                        }
                     }
                     else -> {
                         userId = (tokenDecode as DecodedJWT).audience[0].toString()
@@ -63,6 +69,7 @@ class Main {
                     get("/photos", UserRoutes.getPhotos)
                     post("/follow", UserRoutes.follow)
                     post("/unfollow", UserRoutes.unfollow)
+                    post("/requests", UserRoutes.requests)
                     post("/approve", UserRoutes.approve)
                     get("/followers", UserRoutes.getFollows(false))
                     get("/following", UserRoutes.getFollows(true))
@@ -91,6 +98,12 @@ class Main {
                 }
                 path("/static") {
                     get("/photos", MiscRoutes.redirectToStaticPhotos)
+
+                }
+                path("/admin") {
+                    get("/validate", AdminRoutes.validate)
+                    get("/changePassword", AdminRoutes.changePassword)
+                    get("/kill", AdminRoutes.kill)
 
                 }
             }

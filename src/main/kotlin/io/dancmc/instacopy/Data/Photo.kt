@@ -6,6 +6,10 @@ data class Photo(
         val timestamp:Long,
         var latitude:Double,
         var longitude:Double,
-        var location_name:String=""
+        var location_name:String="",
+        var thumbSize :Pair<Int,Int> = Pair(0,0),
+        var smallSize :Pair<Int,Int> = Pair(0,0),
+        var regularSize :Pair<Int,Int> = Pair(0,0)
+
 ) {
 }

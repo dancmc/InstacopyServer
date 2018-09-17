@@ -235,7 +235,8 @@ object DiscoverRoutes {
             val jsonArray = JSONArray()
             finalList.forEach {
                 val photoObject = JSONObject()
-                jsonArray.put(photoObject.put("photo_id", it).put("url", JSONObject().put("small", Utils.constructPhotoUrl("small", it))))
+                val smallJson = JSONObject().put("link", Utils.constructPhotoUrl("small", it))
+                jsonArray.put(photoObject.put("photo_id", it).put("url", JSONObject().put("small", smallJson)))
             }
 
             seedPrevPage++

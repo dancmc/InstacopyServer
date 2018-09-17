@@ -145,8 +145,8 @@ object UserRoutes {
     val getPhotos = Route { request, response ->
         val displayName = request.queryParamOrDefault("display_name", "").toLowerCase()
         val sort = request.queryParamOrDefault("sort", "").toLowerCase()
-        val latitude = request.queryParamOrDefault("latitude", "-1").toDoubleOrNull()
-        val longitude = request.queryParamOrDefault("longitude", "-1").toDoubleOrNull()
+        val latitude = request.queryParamOrDefault("latitude", "a").toDoubleOrNull()
+        val longitude = request.queryParamOrDefault("longitude", "a").toDoubleOrNull()
         val lastPhotoFetchedID = request.queryParamOrDefault("last_photo_fetched", "")
         val userID = request.attribute("user") as String
 
@@ -155,6 +155,10 @@ object UserRoutes {
                 it.findNode(Label { "Photo" }, "photo_id", lastPhotoFetchedID)
             } as Node?
         } else null
+
+        if(lastPhotoFetchedID.isNotBlank() && lastPhotoFetched == null){
+            return@Route JSONObject().fail(message = "Invalid last photo")
+        }
 
         if (displayName.isBlank()) {
             return@Route JSONObject().fail(message = "Missing parameters")
@@ -205,7 +209,7 @@ object UserRoutes {
                 }
                 sort == "location" && lastPhotoFetched != null -> {
                     val query = FeedRoutes.distanceQuery(true, userID, isFeed = false, targetDisplayName = displayName, myLat = latitude!!, myLong = longitude!!
-                            , prevLat = lastPhotoFetched.getProperty("latitude") as Double, prevLong = lastPhotoFetched.getProperty("longitude") as Double)
+                            , prevID = lastPhotoFetchedID,prevLat = lastPhotoFetched.getProperty("latitude") as Double, prevLong = lastPhotoFetched.getProperty("longitude") as Double)
                     results = it.execute(query.first, query.second)
                 }
                 else -> {
@@ -226,16 +230,6 @@ object UserRoutes {
 
     }
 
-    fun followQuery(userID: String, targetDisplayName: String): Pair<String, HashMap<String, Any>> {
-        val params = hashMapOf<String, Any>()
-        params.put("user_id", userID)
-        params.put("target_display_name", targetDisplayName)
-        return Pair("MATCH (u1:User{user_id:\$user_id})\n" +
-                "with u1\n" +
-                "MATCH (u2:User{display_name:\$target_display_name})\n" +
-                "with u1, u2\n" +
-                "return u2.user_id as other_user_id, EXISTS((u1)-[:FOLLOWS]->(u2)) as is_following, EXISTS((u1)-[:REQUESTED]->(u2)) as has_requested, u2.private as is_private", params)
-    }
 
     val follow = Route { request, response ->
         val requestJson = JSONObject(request.body())
@@ -306,6 +300,38 @@ object UserRoutes {
             val query = unfollowQuery(userID, displayName)
             it.execute(query.first, query.second)
             return@executeTransaction JSONObject().success()
+        } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
+
+    }
+
+    fun requestsQuery(userID: String): Pair<String, HashMap<String, Any>> {
+        val params = hashMapOf<String, Any>()
+        params.put("user_id", userID)
+        return Pair("match (me:User{user_id:\$user_id})<-[r:REQUESTED]-(u1:User)\n" +
+                "return u1.display_name as display_name, u1.profile_name as profile_name, u1.user_id as user_id, " +
+                "EXISTS((me)-[:FOLLOWS]->(u1)) as are_following, r.timestamp as timestamp", params)
+    }
+
+    val requests = Route { request, response ->
+        val userID = request.attribute("user") as String
+
+        // If sorting by date with no previous photo
+        Database.executeTransaction("Get Requests") {
+
+            val query = requestsQuery(userID)
+            var results = it.execute(query.first, query.second)
+
+            val array = JSONArray()
+            Database.processResult(results){
+                val requestObject = JSONObject()
+                requestObject.put("timestamp", it["timestamp"] as Long)
+                requestObject.put("display_name", it["display_name"] as String)
+                requestObject.put("profile_image", Utils.constructPhotoUrl("profile",it["user_id"] as String))
+                requestObject.put("profile_name", it["profile_name"] as String)
+                requestObject.put("are_following", it["are_following"] as Boolean)
+            }
+
+            return@executeTransaction JSONObject().success().put("requests", array)
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
     }

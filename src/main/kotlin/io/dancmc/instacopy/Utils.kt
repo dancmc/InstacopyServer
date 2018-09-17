@@ -17,6 +17,10 @@ import java.io.*
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.collections.ArrayList
+import java.awt.Dimension
+import javax.imageio.ImageReader
+import javax.imageio.stream.ImageInputStream
+import kotlin.collections.HashMap
 
 
 object Utils {
@@ -111,7 +115,7 @@ object Utils {
         return BufferedImage(cm, raster, isAlphaPremultiplied, null)
     }
 
-    fun  handleImage(photoName:String,inputstream:InputStream, profile:Boolean){
+    fun  handleImage(photoName:String,inputstream:InputStream, profile:Boolean):HashMap<String, Pair<Int,Int>>{
         val temp = File(Main.picFolder, "${UUID.randomUUID()}.jpg")
         inputstream.use { // getPart needs to use same "name" as input field in form
             input -> Files.copy(input, temp.toPath(), StandardCopyOption.REPLACE_EXISTING)
@@ -122,6 +126,7 @@ object Utils {
                 Pair("small",400),
                 Pair("regular",1080))
 
+        val resultSizes = HashMap<String, Pair<Int,Int>>()
         sizes.forEach {
             val originalImage = ImageIO.read(temp)
             var scaledImg = Scalr.resize(originalImage, it.second)
@@ -169,8 +174,11 @@ object Utils {
 
 //            ImageIO.write(scaledImg, "jpeg", File(Main.picFolder,"$photoName-${it.first}.jpg"))
             ImageIO.write(scaledImg, "jpeg", File(Main.picFolder+"/${it.first}","$photoName.jpg"))
+            val dimensions = Utils.readDimensions(File(Main.picFolder+"/${it.first}","$photoName.jpg"))
+            resultSizes.put(it.first, dimensions)
         }
         temp.delete()
+        return resultSizes
     }
 
     object Token {
@@ -212,6 +220,26 @@ object Utils {
         val newList = ArrayList(list)
         newList.shuffle()
         return newList.subList(0, Math.min(elements, list.size))
+    }
+
+    fun readDimensions(file:File):Pair<Int, Int>{
+        try {
+            ImageIO.createImageInputStream(file).use { `in` ->
+                val readers = ImageIO.getImageReaders(`in`)
+                if (readers.hasNext()) {
+                    val reader = readers.next()
+                    try {
+                        reader.input = `in`
+                        return Pair(reader.getWidth(0), reader.getHeight(0))
+                    } finally {
+                        reader.dispose()
+                    }
+                }
+            }
+        }catch (e:Exception){
+            println(file.path)
+        }
+        return Pair(0,0)
     }
 }
 

@@ -23,17 +23,16 @@ object PhotoRoutes {
 
         val requestJson = JSONObject(request.raw().getPart("json")?.inputStream?.bufferedReader().use { it?.readText() } ?: "{}")
         val caption = requestJson.optString("caption","")
-        val latitude = requestJson.optDouble("latitude",-99999.9)
-        val longitude = requestJson.optDouble("longitude",-99999.9)
+        val latitude = requestJson.optDouble("latitude",999.0)
+        val longitude = requestJson.optDouble("longitude",999.0)
         val locationName = requestJson.optString("location_name","")
         val userID = request.attribute("user") as String
 
-        if (latitude == -99999.9 || longitude == -99999.9) {
-            return@Route JSONObject().fail(message = "Incorrect parameters")
+        if(((latitude>90.0 || latitude<-90.0)&& latitude!=999.0)||((longitude>180.0 || longitude<-180.0)&& longitude!=999.0)){
+            return@Route JSONObject().fail(message = "Invalid latitude or longitude")
         }
 
         var photoID = UUID.randomUUID().toString()
-
 
         Database.executeTransaction("Upload Photos") {
             var node = it.findNode( { "Photo" }, "photo_id", photoID)
@@ -56,9 +55,16 @@ object PhotoRoutes {
 //            input -> Files.copy(input, temp.toPath(), StandardCopyOption.REPLACE_EXISTING)
 //        }
         launch {
-            Utils.handleImage(photoID, filepart.inputStream, false)
-        }
+            val dimensions = Utils.handleImage(photoID, filepart.inputStream, false)
+            Database.executeTransaction("Upload Photos") {
+                var node = it.findNode( { "Photo" }, "photo_id", photoID)
+                dimensions.forEach { size, dimensions ->
+                    node.setProperty("${size}_width",dimensions.first)
+                    node.setProperty("${size}_height",dimensions.second)
+                }
 
+            }
+        }
 
         val json = JSONObject().success()
         json.put("regular", Utils.constructPhotoUrl("regular", photoID))
