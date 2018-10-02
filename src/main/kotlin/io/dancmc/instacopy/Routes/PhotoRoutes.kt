@@ -238,11 +238,11 @@ object PhotoRoutes {
 
     }
 
-    fun getLikesQuery(userID: String, photoID: String, recent: Boolean = false, lastLikeTimestamp: Long = -1L): Pair<String, HashMap<String, Any>> {
+    fun getLikesQuery(userID: String, photoID: String, recent: Boolean = false, last_fetched: String = ""): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("user_id", userID)
         params.put("photo_id", photoID)
-        params.put("last_like_timestamp", lastLikeTimestamp)
+        params.put("last_fetched", last_fetched)
 
         val recentQuery = "with \$photo_id as photo_id, \$user_id as user_id\n" +
                 "MATCH (u:User)-[l:LIKES]->(p:Photo{photo_id:photo_id})\n" +
@@ -250,10 +250,11 @@ object PhotoRoutes {
                 "return u.display_name as display_name, u.profile_name as profile_name, u.user_id as user_id,EXISTS((:User{user_id:user_id})-[:FOLLOWS]->(u)) as are_following,  " +
                 "l.timestamp as timestamp order by l.timestamp desc limit 50"
 
-        val normalQuery = "with \$photo_id as photo_id, \$user_id as user_id, \$last_like_timestamp as last_like_timestamp\n" +
+        val normalQuery = "with \$photo_id as photo_id, \$user_id as user_id, \$last_fetched as last_fetched\n" +
+                (if (last_fetched.isNotBlank())"MATCH (u1:User{display_name:last_fetched})-[l1:LIKES]->(p:Photo{photo_id:photo_id})\n" else "") +
                 "MATCH (u:User)-[l:LIKES]->(p:Photo{photo_id:photo_id})\n" +
-                "with u, l, user_id\n" +
-                (if (lastLikeTimestamp != -1L) "WHERE l.timestamp>last_like_timestamp\n" else "") +
+//                "with u, l, user_id, l1\n" +
+                (if (last_fetched.isNotBlank()) "WHERE l.timestamp>l1.timestamp\n" else "") +
                 "return u.display_name as display_name, u.profile_name as profile_name, u.user_id as user_id,EXISTS((:User{user_id:user_id})-[:FOLLOWS]->(u)) as are_following,  " +
                 "l.timestamp as timestamp order by l.timestamp asc limit 30"
 
@@ -265,7 +266,7 @@ object PhotoRoutes {
     val getPhotoLikes = Route { request, response ->
         val userID = request.attribute("user") as String
         val photoID = request.queryParamOrDefault("photo_id", "")
-        val lastLikeTime = request.queryParamOrDefault("last_like_timestamp", "").toLongOrNull()
+        val lastFetched = request.queryParamOrDefault("last_fetched", "")
         var recent = request.queryParamOrDefault("recent", "").toIntOrNull()
 
         val json = JSONObject().success()
@@ -273,7 +274,7 @@ object PhotoRoutes {
             if (recent != null) {
                 recent = Math.max(recent!!, 0)
             }
-            val query = getLikesQuery(userID, photoID, recent != null, lastLikeTime ?: -1)
+            val query = getLikesQuery(userID, photoID, recent != null, lastFetched)
             val results = it.execute(query.first, query.second)
 
             val unfilteredArray = Database.resultToProfileArray(results)

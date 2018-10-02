@@ -4,7 +4,6 @@ import apoc.cypher.Cypher
 import apoc.help.Help
 import apoc.text.Strings
 import com.auth0.jwt.interfaces.DecodedJWT
-import io.dancmc.instacopy.Data.DataLoader
 import io.dancmc.instacopy.Data.Database
 import io.dancmc.instacopy.Routes.*
 import kotlinx.coroutines.experimental.delay
@@ -21,9 +20,9 @@ class Main {
     companion object {
 
         val picRoute = "/instacopy/files"
-//                val picFolder = "/users/daniel/downloads/unsplash"
-//                val domain = "http://localhost:8080/instacopy/v1"
-//        val databaseLocation  = "/users/daniel/downloads/social"
+//        val picFolder = "/users/daniel/downloads/unsplash"
+//        val domain = "http://localhost:8080/instacopy/v1"
+//        val databaseLocation = "/users/daniel/downloads/social"
         val picFolder = "/mnt/www/instacopy/photos"
         val domain = "https://dancmc.io/instacopy/v1"
         val databaseLocation  = "/mnt/www/instacopy/social"
@@ -49,7 +48,8 @@ class Main {
                     tokenDecode is JSONObject -> {
                         // TODO remember to change this
 //                        request.attribute("user", "315022a1-3702-4997-9b95-4419caa6e81e")
-                        if(request.pathInfo().contains("/user/login") && request.pathInfo().contains("/user/register")) {
+                        val path = request.pathInfo()
+                        if (!path.contains("/user/login") && !path.contains("/user/register")) {
                             halt(401, tokenDecode.toString())
                         }
                     }
@@ -73,6 +73,7 @@ class Main {
                     post("/approve", UserRoutes.approve)
                     get("/followers", UserRoutes.getFollows(false))
                     get("/following", UserRoutes.getFollows(true))
+                    get("/followingWhoFollow", UserRoutes.getFollowingWhoFollow())
                     post("/update", UserRoutes.updateDetails)
                     get("/getDetails", UserRoutes.getDetails)
                 }

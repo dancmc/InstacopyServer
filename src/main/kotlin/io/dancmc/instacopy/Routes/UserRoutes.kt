@@ -19,12 +19,12 @@ import javax.servlet.MultipartConfigElement
 object UserRoutes {
     val register = Route { request, response ->
         val requestJson = JSONObject(request.body())
-        val username = requestJson.optString("username", "")
+        val username = requestJson.optString("username", "").toLowerCase()
         val password = requestJson.optString("password", "")
         val firstName = requestJson.optString("first_name", "")
         val lastName = requestJson.optString("last_name", "")
         val email = requestJson.optString("email", "")
-        val displayName = requestJson.optString("display_name", "")
+        val displayName = requestJson.optString("display_name", "").toLowerCase()
         if (username.isBlank() || password.isBlank() || email.isBlank() || lastName.isBlank() || displayName.isBlank()) {
             return@Route JSONObject().fail(-1, "Missing field")
         }
@@ -36,7 +36,11 @@ object UserRoutes {
         val result = Database.addUser(user)
         if (result.first) {
             val jwt = Utils.Token.createAppToken(result.second)
-            JSONObject().success().put("jwt", jwt)
+            JSONObject().success()
+                    .put("jwt", jwt)
+                    .put("user_id", result.second)
+                    .put("username", username)
+                    .put("display_name", displayName)
         } else {
             JSONObject().fail(message = result.second)
         }
@@ -44,7 +48,7 @@ object UserRoutes {
 
     val login = Route { request, response ->
         val requestJson = JSONObject(request.body())
-        val username = requestJson.optString("username", "")
+        val username = requestJson.optString("username", "").toLowerCase()
         val password = requestJson.optString("password", "")
 
         val user = Database.getUser(username = username)
@@ -53,7 +57,11 @@ object UserRoutes {
         } else {
             Database.executeTransaction {
                 if (Utils.Password.verifyPassword(user.getProperty("password_hash") as String, password)) {
-                    JSONObject().success().put("jwt", Utils.Token.createAppToken(user.getProperty("user_id") as String))
+                    JSONObject().success()
+                            .put("jwt", Utils.Token.createAppToken(user.getProperty("user_id") as String))
+                            .put("username", username)
+                            .put("user_id", user.getProperty("user_id") as String)
+                            .put("display_name", user.getProperty("display_name") as String)
                 } else {
                     JSONObject().fail(message = "Wrong password")
                 }
@@ -87,7 +95,7 @@ object UserRoutes {
 
     val getInfo = Route { request, response ->
         val userID = request.attribute("user") as String
-        val displayName = request.queryParamOrDefault("display_name", "")
+        val displayName = request.queryParamOrDefault("display_name", "").toLowerCase()
 
         if (displayName.isBlank()) {
             return@Route JSONObject().fail(message = "Incorrect parameters")
@@ -176,7 +184,7 @@ object UserRoutes {
         var isPrivate = false
 
         val privacy = Database.privacyCheck(userID, displayName)
-        if(privacy!=null){
+        if(privacy!=null && privacy.isNotEmpty()){
             isFollowing = privacy["isFollowing"] as Boolean
             hasRequested = privacy["hasRequested"] as Boolean
             isPrivate = privacy["isPrivate"] as Boolean
@@ -426,6 +434,66 @@ object UserRoutes {
 
         }
     }
+
+    fun getFollowingWhoFollowQuery(paging: Boolean, userID: String, targetDisplayName: String, lastFollowerName: String = ""): Pair<String, HashMap<String, Any>> {
+        val params = hashMapOf<String, Any>()
+        params.put("user_id", userID)
+        params.put("target_display_name", targetDisplayName)
+        params.put("last_follower_name", lastFollowerName)
+        return Pair("with \$user_id as my_id" + (if (paging) ", \$last_follower_name as last_follower_name" else "") + "\n" +
+                "match (me:User{user_id:my_id})\n" +
+                (if (paging) "match (last_follower:User{display_name:last_follower_name})\n" else "") +
+                "match (u1:User{display_name:\$target_display_name})<-[f:FOLLOWS]-(u)\n" +
+                (if (paging) "match (last_follower)-[f1:FOLLOWS]->(u1)\n" +
+                        "where f.timestamp>f1.timestamp and (me)-[:FOLLOWS]->(u)\n" else "") +
+                "return u.display_name as display_name, u.profile_name as profile_name, " +
+                "u.user_id as user_id, " +
+                "f.timestamp as timestamp order by f.timestamp asc limit 30", params)
+    }
+
+    fun getFollowingWhoFollow(): Route {
+        return Route { request, response ->
+            val userID = request.attribute("user") as String
+            val displayName = request.queryParamOrDefault("display_name", "")
+            val lastFollowerFetched = request.queryParamOrDefault("last_fetched", "")
+
+            if (displayName.isBlank()) {
+                return@Route JSONObject().fail(message = "Incorrect parameters")
+            }
+
+            var isFollowing = false
+            var hasRequested = false
+            var isPrivate = false
+            var otherID = ""
+
+            val privacy = Database.privacyCheck(userID, displayName)
+            if(privacy!=null){
+                isFollowing = privacy["isFollowing"] as Boolean
+                hasRequested = privacy["hasRequested"] as Boolean
+                isPrivate = privacy["isPrivate"] as Boolean
+                otherID = privacy["otherID"] as String
+            }else {
+                return@Route JSONObject().fail(message = "User does not exist")
+            }
+
+            Database.executeTransaction {
+
+                val lastFollower = it.findNode({ "User" }, "display_name", lastFollowerFetched)
+                if (lastFollowerFetched.isNotBlank() && lastFollower == null) {
+                    return@executeTransaction JSONObject().fail(message = "Invalid last fetched")
+                }
+
+                val query = getFollowingWhoFollowQuery(lastFollower != null, userID, displayName,
+                        (lastFollower?.getProperty("display_name") as String?) ?: "")
+                val array = Database.resultToProfileArray(it.execute(query.first, query.second))
+
+                return@executeTransaction JSONObject().success().put("users", array)
+
+            } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
+
+        }
+    }
+
 
     val getDetails = Route { request, response ->
         val userID = request.attribute("user") as String

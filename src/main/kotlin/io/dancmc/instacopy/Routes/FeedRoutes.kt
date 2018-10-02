@@ -92,6 +92,9 @@ object FeedRoutes {
             if (sort == "location" && (latitude == null || longitude == null)) {
                 return@executeTransaction JSONObject().fail(message = "Missing latitude or longitude")
             }
+            if (sort == "location" && (latitude!! >180.0 || latitude <-180.0 ||longitude!! >180.0 || longitude <-180.0)) {
+                return@executeTransaction JSONObject().fail(message = "Invalid longitude or latitude")
+            }
 
             var results: Result? = null
 
