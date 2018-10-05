@@ -536,6 +536,14 @@ object UserRoutes {
                 if (password.isBlank()) {
                     return@executeTransaction JSONObject().fail(message = "Password cannot be blank")
                 }
+                if(password.length<8){
+                    return@executeTransaction JSONObject().fail(message = "Password must be at least 8 characters")
+                }
+                // check old password
+                val old = requestJson.optString("old_password","")
+                if(!Utils.Password.verifyPassword(userNode.getProperty("password_hash") as String, old)){
+                    return@executeTransaction JSONObject().fail(message = "Old password does not match")
+                }
                 toCommit.put("password_hash", Utils.Password.hashPassword(password))
             }
             if (requestJson.has("email")) {
@@ -604,6 +612,18 @@ object UserRoutes {
             json
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
+    }
+
+    val validate = Route { request, response ->
+        val userID = request.attribute("user") as String
+        Database.executeTransaction {
+            val user = it.findNode({"User"}, "user_id", userID)
+            if(user==null){
+                return@executeTransaction JSONObject().fail(code = Errors.JWT_NOT_VALID, message = "User JWT not valid")
+            }else {
+                return@executeTransaction  JSONObject().success()
+            }
+        } as JSONObject? ?: JSONObject().fail(message = "DB Fail")
     }
 
 

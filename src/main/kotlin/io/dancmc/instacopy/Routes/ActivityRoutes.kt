@@ -199,11 +199,11 @@ object ActivityRoutes {
 
     }
 
-    val threeMonthsMs = 1000L*60*60*24*30*3
+    val fourMonthsMs = 1000L*60*60*24*30*4
 
     val getOthersActivity = Route { request, response ->
         val userID = request.attribute("user") as String
-        val timestampLimit = System.currentTimeMillis() - threeMonthsMs
+        val timestampLimit = System.currentTimeMillis() - fourMonthsMs
 
         val likeParams = hashMapOf<String, Any>(Pair("user_id", userID), Pair("timestamp_limit",timestampLimit))
         val likesQuery = "match (me:User{user_id:\$user_id})-[:FOLLOWS]->(u), (u)-[l:LIKES]->(p)\n" +
@@ -243,7 +243,7 @@ object ActivityRoutes {
 
             initialList.sortByDescending { it.timestamp }
 
-            while (userLikedPosts.size+usersLikedPost.size+userFollowedUsers.size<50 && initialList.size>0){
+            while (userLikedPosts.size+usersLikedPost.size+userFollowedUsers.size<150 && initialList.size>0){
                 val event = initialList.pop()
                 when {
 
@@ -263,11 +263,12 @@ object ActivityRoutes {
                             usersLikedPost[photoID] = newList
                         } else{
                             val list = usersLikedPost[photoID]!!
-                            list.add(event)
                             if(list.size==1){
                                 val firstUserID = (list.first() as LikeTemporalEvent).likerID
                                 userLikedPosts[firstUserID]!!.removeIf { (it as LikeTemporalEvent).photoID == photoID }
                             }
+                            list.add(event)
+
                         }
 
                     }
@@ -291,7 +292,7 @@ object ActivityRoutes {
                  }
              }
             usersLikedPost.forEach {
-                if(it.value.isNotEmpty()) {
+                if(it.value.size>1) {
                     finalList.add(Triple("ManyToOne", it.value.first().timestamp, it.value))
                 }
             }
@@ -301,6 +302,7 @@ object ActivityRoutes {
                 }
             }
             finalList.sortByDescending { it.second }
+
 
             val jsonArray = JSONArray()
             finalList.forEach {

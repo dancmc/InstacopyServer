@@ -4,11 +4,13 @@ import apoc.cypher.Cypher
 import apoc.help.Help
 import apoc.text.Strings
 import com.auth0.jwt.interfaces.DecodedJWT
+import io.dancmc.instacopy.Data.DataLoader
 import io.dancmc.instacopy.Data.Database
 import io.dancmc.instacopy.Routes.*
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.json.JSONObject
+import org.neo4j.graphdb.Label
 import org.neo4j.internal.kernel.api.exceptions.KernelException
 import org.neo4j.kernel.impl.proc.Procedures
 import org.neo4j.kernel.internal.GraphDatabaseAPI
@@ -49,7 +51,7 @@ class Main {
                         // TODO remember to change this
 //                        request.attribute("user", "315022a1-3702-4997-9b95-4419caa6e81e")
                         val path = request.pathInfo()
-                        if (!path.contains("/user/login") && !path.contains("/user/register")) {
+                        if (!path.contains("/user/login") && !path.contains("/user/register") && !path.contains("/admin")) {
                             halt(401, tokenDecode.toString())
                         }
                     }
@@ -76,6 +78,7 @@ class Main {
                     get("/followingWhoFollow", UserRoutes.getFollowingWhoFollow())
                     post("/update", UserRoutes.updateDetails)
                     get("/getDetails", UserRoutes.getDetails)
+                    get("/validate", UserRoutes.validate)
                 }
                 get("/feed", FeedRoutes.feed)
                 get("/search", DiscoverRoutes.search)
@@ -101,17 +104,17 @@ class Main {
                     get("/photos", MiscRoutes.redirectToStaticPhotos)
 
                 }
+
                 path("/admin") {
-                    get("/validate", AdminRoutes.validate)
                     get("/changePassword", AdminRoutes.changePassword)
                     get("/kill", AdminRoutes.kill)
-
                 }
             }
 
 
 
             Database.init()
+
             runBlocking {
                 while (!Database.initialised) {
                     delay(1000)
