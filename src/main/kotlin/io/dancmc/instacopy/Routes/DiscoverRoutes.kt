@@ -151,81 +151,99 @@ object DiscoverRoutes {
 
     }
 
-    fun suggestPhotosQuery(userID: String, followingFollowing: Boolean, regexp: String, page: Int): Pair<String, HashMap<String, Any>> {
+    fun suggestPhotosQuery(userID: String, followingFollowing: Boolean, regexp: String): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("user_id", userID)
-        params.put("skip", (page - 1) * 20)
         params.put("regexp", "[$regexp].*")
 
         return Pair("match (me:User{user_id:\$user_id}) \n" +
-                "match (u1)-[:POSTED]->(p) where not (me)-[:FOLLOWS]->(u1) and not u1.private ${if (followingFollowing) "and (me)-[:FOLLOWS*2]->(u1)" else ""} " +
-                "and  p.photo_id =~ \$regexp and not (u1)=(me)\n" +
-                "return p.photo_id as photo_id skip \$skip limit 40", params)
+                "match (u1)-[:POSTED]->(p) where " +
+                "p.photo_id =~ \$regexp " +
+                "and not u1.private " +
+                "and not (me)-[:FOLLOWS]->(u1) " +
+                "and ${if (followingFollowing) "" else "not"} (me)-[:FOLLOWS*2]->(u1) " +
+                "and not (u1)=(me)\n" +
+                "return p.photo_id as photo_id limit 40", params)
     }
 
+    // skipping is too slow, so just go one hex letter at a time instead of 4 with paging
+    // max 16 pages here
+    // if want more combinations in a larger database, either match first 2 id letters at a time (16*16)
+    // or combination of id letter and timestamp last digit (16*10)
     val suggestPhotos = Route { request, response ->
         val userID = request.attribute("user") as String
         val seed = request.queryParamOrDefault("seed", "")
         val hasSeed = request.queryParams().contains("seed")
 
-        // choose initial 4 hex letters first if none returned
-        var seedReg = if (hasSeed) seed.split("_")[0] else Utils.randomSublist(hexList, 4).joinToString("")
-        var seedPrevPage = if (hasSeed) seed.split("_")[1].toInt() else 0
+        // choose 1 letter
+        var seedReg = if (hasSeed) seed else Utils.randomSublist(hexList, 1).joinToString("")
 
         if (hasSeed && seed.isBlank()) {
             return@Route JSONObject().fail(message = "Incorrect parameters")
         }
 
+        // ** no paging now
         // first try following following with most recent 4 hex letters & take 40 at specified paging
         // if less than 40 returned, time to move on
         // select next 4 hex letters and try, then append these 4 letters to seedReg
         Database.executeTransaction {
-            var regexp = seedReg.takeLast(4)
-            var query = suggestPhotosQuery(userID, true, regexp, seedPrevPage + 1)
-            var results = it.execute(query.first, query.second)
 
-            var followFollowingList = LinkedList<String>()
-            Database.processResult(results) {
-                followFollowingList.add(it["photo_id"] as String)
-            }
-            if (followFollowingList.size < 40) {
-                followFollowingList = LinkedList()
-                if (seedReg.length < 16) {
-                    // if prev regexp ran out of photos, get next regexp and reset page number
-                    seedPrevPage = 0
-                    val remaining = ArrayList(hexList)
-                    remaining.removeAll(seedReg.toList())
-                    remaining.shuffle()
-                    regexp = remaining.takeLast(4).joinToString("")
-                    seedReg += regexp
-
-                    query = suggestPhotosQuery(userID, true, regexp, seedPrevPage + 1)
-                    results = it.execute(query.first, query.second)
-
-                    Database.processResult(results) {
-                        followFollowingList.add(it["photo_id"] as String)
-                    }
-
-                }
-            }
-
-            query = suggestPhotosQuery(userID, false, regexp, seedPrevPage + 1)
-            results = it.execute(query.first, query.second)
-
+            var regexp = ""
+            val followFollowingList = LinkedList<String>()
             val randomList = LinkedList<String>()
-            Database.processResult(results) {
-                randomList.add(it["photo_id"] as String)
+
+            fun getNewSeedReg():Boolean{
+                if(seedReg.length == 16) return false
+
+                val remaining = ArrayList(hexList)
+                remaining.removeAll(seedReg.toList())
+                remaining.shuffle()
+                regexp = remaining.takeLast(1).joinToString("")
+                seedReg += regexp
+                return true
             }
+
+            fun runQuery(){
+                val time = System.currentTimeMillis()
+                var query = suggestPhotosQuery(userID, true, regexp)
+                var results = it.execute(query.first, query.second)
+
+                Database.processResult(results) {
+                    followFollowingList.add(it["photo_id"] as String)
+                }
+                println(System.currentTimeMillis()-time)
+
+                val time2 = System.currentTimeMillis()
+                query = suggestPhotosQuery(userID, false, regexp)
+                results = it.execute(query.first, query.second)
+
+                Database.processResult(results) {
+                    randomList.add(it["photo_id"] as String)
+                }
+                println(System.currentTimeMillis()-time2)
+
+            }
+
+            while(followFollowingList.size+randomList.size==0) {
+                val tryGetNewReg2 = getNewSeedReg()
+                if(!tryGetNewReg2){
+                    return@executeTransaction JSONObject().success()
+                            .put("seed", seed)
+                            .put("photos", JSONArray())
+                }
+                runQuery()
+            }
+
 
             val finalList = ArrayList<String>()
             val random = Random()
-            while(finalList.size<60 && followFollowingList.size+randomList.size>0){
-                if(random.nextDouble()<0.66){
-                    if(followFollowingList.size>0){
+            while (finalList.size < 90 && followFollowingList.size + randomList.size > 0) {
+                if (random.nextDouble() < 0.66) {
+                    if (followFollowingList.size > 0) {
                         finalList.add(followFollowingList.pop())
                     }
-                }else {
-                    if(randomList.size>0){
+                } else {
+                    if (randomList.size > 0) {
                         finalList.add(randomList.pop())
                     }
                 }
@@ -239,11 +257,116 @@ object DiscoverRoutes {
                 jsonArray.put(photoObject.put("photo_id", it).put("url", JSONObject().put("small", smallJson)))
             }
 
-            seedPrevPage++
-            val newSeed = "${seedReg}_$seedPrevPage"
+            val newSeed = seedReg
 
             json.put("seed", newSeed).put("photos", jsonArray)
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
     }
+
+
+
+//    fun suggestPhotosQuery2(userID: String, followingFollowing: Boolean, regexp: String, page: Int): Pair<String, HashMap<String, Any>> {
+//        val params = hashMapOf<String, Any>()
+//        params.put("user_id", userID)
+//        params.put("skip", (page - 1) * 40)
+//        params.put("regexp", "[$regexp].*")
+//
+//        return Pair("match (me:User{user_id:\$user_id}) \n" +
+//                "match (u1)-[:POSTED]->(p) where " +
+//                "p.photo_id =~ \$regexp " +
+//                "and not u1.private " +
+//                "and not (me)-[:FOLLOWS]->(u1) " +
+//                "and ${if (followingFollowing) "" else "not"} (me)-[:FOLLOWS*2]->(u1) " +
+//                "and not (u1)=(me)\n" +
+//                "return p.photo_id as photo_id skip \$skip limit 40", params)
+//    }
+//
+//    val suggestPhotos2 = Route { request, response ->
+//        val userID = request.attribute("user") as String
+//        val seed = request.queryParamOrDefault("seed", "")
+//        val hasSeed = request.queryParams().contains("seed")
+//
+//        // choose initial 4 hex letters first if none returned
+//        var seedReg = if (hasSeed) seed.split("_")[0] else Utils.randomSublist(hexList, 4).joinToString("")
+//        var seedPrevPage = if (hasSeed) seed.split("_")[1].toInt() else 0
+//
+//        if (hasSeed && seed.isBlank()) {
+//            return@Route JSONObject().fail(message = "Incorrect parameters")
+//        }
+//
+//        // first try following following with most recent 4 hex letters & take 40 at specified paging
+//        // if less than 40 returned, time to move on
+//        // select next 4 hex letters and try, then append these 4 letters to seedReg
+//        Database.executeTransaction {
+//            var regexp = seedReg.takeLast(4)
+//            var query = suggestPhotosQuery2(userID, true, regexp, seedPrevPage + 1)
+//            val time = System.currentTimeMillis()
+//            var results = it.execute(query.first, query.second)
+//
+//
+//            var followFollowingList = LinkedList<String>()
+//            Database.processResult(results) {
+//                followFollowingList.add(it["photo_id"] as String)
+//            }
+//            println(System.currentTimeMillis()-time)
+//            if (followFollowingList.size < 40) {
+//                followFollowingList = LinkedList()
+//                if (seedReg.length < 16) {
+//                    // if prev regexp ran out of photos, get next regexp and reset page number
+//                    seedPrevPage = 0
+//                    val remaining = ArrayList(hexList)
+//                    remaining.removeAll(seedReg.toList())
+//                    remaining.shuffle()
+//                    regexp = remaining.takeLast(4).joinToString("")
+//                    seedReg += regexp
+//
+//                    query = suggestPhotosQuery2(userID, true, regexp, seedPrevPage + 1)
+//                    results = it.execute(query.first, query.second)
+//
+//                    Database.processResult(results) {
+//                        followFollowingList.add(it["photo_id"] as String)
+//                    }
+//
+//                }
+//            }
+//
+//            query = suggestPhotosQuery2(userID, false, regexp, seedPrevPage + 1)
+//            val time2 = System.currentTimeMillis()
+//            results = it.execute(query.first, query.second)
+//
+//
+//            val randomList = LinkedList<String>()
+//            Database.processResult(results) {
+//                randomList.add(it["photo_id"] as String)
+//            }
+//            println(System.currentTimeMillis()-time2)
+//            val finalList = ArrayList<String>()
+//            val random = Random()
+//            while(finalList.size<60 && followFollowingList.size+randomList.size>0){
+//                if(random.nextDouble()<0.66){
+//                    if(followFollowingList.size>0){
+//                        finalList.add(followFollowingList.pop())
+//                    }
+//                }else {
+//                    if(randomList.size>0){
+//                        finalList.add(randomList.pop())
+//                    }
+//                }
+//            }
+//
+//            val json = JSONObject().success()
+//            val jsonArray = JSONArray()
+//            finalList.forEach {
+//                val photoObject = JSONObject()
+//                val smallJson = JSONObject().put("link", Utils.constructPhotoUrl("small", it))
+//                jsonArray.put(photoObject.put("photo_id", it).put("url", JSONObject().put("small", smallJson)))
+//            }
+//
+//            seedPrevPage++
+//            val newSeed = "${seedReg}_$seedPrevPage"
+//
+//            json.put("seed", newSeed).put("photos", jsonArray)
+//        } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
+//    }
 
 }

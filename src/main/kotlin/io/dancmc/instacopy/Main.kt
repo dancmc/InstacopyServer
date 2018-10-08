@@ -23,7 +23,7 @@ class Main {
 
         val picRoute = "/instacopy/files"
 //        val picFolder = "/users/daniel/downloads/unsplash"
-//        val domain = "http://localhost:8080/instacopy/v1"
+//        val domain = "http://10.0.0.3:8080/instacopy/v1"
 //        val databaseLocation = "/users/daniel/downloads/social"
         val picFolder = "/mnt/www/instacopy/photos"
         val domain = "https://dancmc.io/instacopy/v1"
