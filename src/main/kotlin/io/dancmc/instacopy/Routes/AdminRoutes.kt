@@ -3,10 +3,12 @@ import io.dancmc.instacopy.Data.Database
 import io.dancmc.instacopy.Utils
 import io.dancmc.instacopy.fail
 import io.dancmc.instacopy.success
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import spark.Route
+import kotlin.system.exitProcess
 
 object AdminRoutes {
 
@@ -24,9 +26,9 @@ object AdminRoutes {
     }
 
     val kill = Route { request, response ->
-        launch {
+        GlobalScope.launch {
             delay(2000)
-            System.exit(0)
+            exitProcess(0)
         }
         return@Route "Shutting down"
     }

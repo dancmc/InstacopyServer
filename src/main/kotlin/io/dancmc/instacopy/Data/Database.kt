@@ -89,7 +89,7 @@ class Database {
             }
         }
 
-        public fun addUsers(users: ArrayList<User>) {
+        public fun addUsers(users: List<User>) {
             executeTransaction("Add Users") {
                 users.forEach {
                     val userFromDb = graphDb.findNode(Label.label("User"), "user_id", it.userID)
@@ -389,6 +389,9 @@ class Database {
                 profileObject.put("display_name", it["display_name"] as String)
                 profileObject.put("profile_name", it["profile_name"] as String)
                 profileObject.put("are_following", it["are_following"] as Boolean)
+                (it["requested_them"] as? Boolean?)?.let {req->
+                    profileObject.put("requested_them", req)
+                }
                 profileObject.put("timestamp", it["timestamp"] as Long)
                 array.put(profileObject)
             }

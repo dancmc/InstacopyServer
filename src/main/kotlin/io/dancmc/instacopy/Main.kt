@@ -4,13 +4,11 @@ import apoc.cypher.Cypher
 import apoc.help.Help
 import apoc.text.Strings
 import com.auth0.jwt.interfaces.DecodedJWT
-import io.dancmc.instacopy.Data.DataLoader
 import io.dancmc.instacopy.Data.Database
 import io.dancmc.instacopy.Routes.*
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
-import org.neo4j.graphdb.Label
 import org.neo4j.internal.kernel.api.exceptions.KernelException
 import org.neo4j.kernel.impl.proc.Procedures
 import org.neo4j.kernel.internal.GraphDatabaseAPI
@@ -22,12 +20,12 @@ class Main {
     companion object {
 
         val picRoute = "/instacopy/files"
-//        val picFolder = "/users/daniel/downloads/unsplash"
-//        val domain = "http://10.0.0.3:8080/instacopy/v1"
-//        val databaseLocation = "/users/daniel/downloads/social"
-        val picFolder = "/mnt/www/instacopy/photos"
-        val domain = "https://dancmc.io/instacopy/v1"
-        val databaseLocation  = "/mnt/www/instacopy/social"
+        val picFolder = "/users/daniel/downloads/unsplash"
+        val domain = "http://192.168.0.72:8080/instacopy/v1"
+        val databaseLocation = "/users/daniel/downloads/unsplash/social"
+//        val picFolder = "/mnt/www/instacopy/photos"
+//        val domain = "https://dancmc.io/instacopy/v1"
+//        val databaseLocation  = "/mnt/www/instacopy/social"
 //        val picFolder = "/var/www/instacopy/photos"
 //        val domain = "https://danielchan.io/instacopy/v1"
 //        val databaseLocation  = "/var/www/instacopy/social"
@@ -113,6 +111,7 @@ class Main {
 
 
 
+
             Database.init()
 
             runBlocking {
@@ -139,35 +138,40 @@ class Main {
                     }
                 }
 
-//                Database.initialiseConstraints()
-//                DataLoader.execute()
+                Database.initialiseConstraints()
 
 
-                val a = System.currentTimeMillis()
 
 
-                Database.executeTransaction {
-                }
-
-                val b = System.currentTimeMillis() - a
-                println("$b")
-                Database.executeTransaction {
-
-                }
-
-                val c = System.currentTimeMillis() - b - a
-                println("$c")
-
-                Database.executeTransaction {
-
-                }
-
-                val d = System.currentTimeMillis() - b - a - c
-                println("$d")
-
-
-                return@runBlocking
+//
+//                val a = System.currentTimeMillis()
+//
+//
+//                Database.executeTransaction {
+//                    println(it.findNodes(Label{"User"}).asSequence().count())
+//                    println(it.findNodes(Label{"Photo"}).asSequence().count())
+//                }
+//
+//                val b = System.currentTimeMillis() - a
+//                println("$b")
+//                Database.executeTransaction {
+//
+//                }
+//
+//                val c = System.currentTimeMillis() - b - a
+//                println("$c")
+//
+//                Database.executeTransaction {
+//
+//                }
+//
+//                val d = System.currentTimeMillis() - b - a - c
+//                println("$d")
+//
+//
+//                return@runBlocking
             }
+            DataOrganiser.execute()
         }
 
     }

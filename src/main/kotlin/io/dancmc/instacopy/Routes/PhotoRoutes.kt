@@ -5,7 +5,8 @@ import io.dancmc.instacopy.Data.Photo
 import io.dancmc.instacopy.Utils
 import io.dancmc.instacopy.fail
 import io.dancmc.instacopy.success
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.neo4j.graphdb.Direction
@@ -54,7 +55,7 @@ object PhotoRoutes {
 //        filepart.inputStream.use { // getPart needs to use same "name" as input field in form
 //            input -> Files.copy(input, temp.toPath(), StandardCopyOption.REPLACE_EXISTING)
 //        }
-        launch {
+        GlobalScope.launch {
             val dimensions = Utils.handleImage(photoID, filepart.inputStream, false)
             Database.executeTransaction("Upload Photos") {
                 var node = it.findNode( { "Photo" }, "photo_id", photoID)
@@ -152,7 +153,7 @@ object PhotoRoutes {
                 commentObject.put("timestamp", it["timestamp"] as Long)
                 array.put(commentObject)
             }
-            json.put("photos", array)
+            json.put("comments", array)
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
 
 
@@ -247,7 +248,8 @@ object PhotoRoutes {
         val recentQuery = "with \$photo_id as photo_id, \$user_id as user_id\n" +
                 "MATCH (u:User)-[l:LIKES]->(p:Photo{photo_id:photo_id})\n" +
                 "with u, l, user_id\n" +
-                "return u.display_name as display_name, u.profile_name as profile_name, u.user_id as user_id,EXISTS((:User{user_id:user_id})-[:FOLLOWS]->(u)) as are_following,  " +
+                "return u.display_name as display_name, u.profile_name as profile_name, u.user_id as user_id,EXISTS((:User{user_id:user_id})-[:FOLLOWS]->(u)) as are_following, " +
+                "EXISTS((:User{user_id:user_id})-[:REQUESTED]->(u)) as requested_them," +
                 "l.timestamp as timestamp order by l.timestamp desc limit 50"
 
         val normalQuery = "with \$photo_id as photo_id, \$user_id as user_id, \$last_fetched as last_fetched\n" +
@@ -256,6 +258,7 @@ object PhotoRoutes {
 //                "with u, l, user_id, l1\n" +
                 (if (last_fetched.isNotBlank()) "WHERE l.timestamp>l1.timestamp\n" else "") +
                 "return u.display_name as display_name, u.profile_name as profile_name, u.user_id as user_id,EXISTS((:User{user_id:user_id})-[:FOLLOWS]->(u)) as are_following,  " +
+                "EXISTS((:User{user_id:user_id})-[:REQUESTED]->(u)) as requested_them," +
                 "l.timestamp as timestamp order by l.timestamp asc limit 30"
 
         val query = if (recent) recentQuery else normalQuery

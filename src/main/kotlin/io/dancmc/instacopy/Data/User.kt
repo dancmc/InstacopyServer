@@ -3,7 +3,7 @@ package io.dancmc.instacopy.Data
 data class User(
         var userID:String,
         val username:String,
-        val passwordHash:String,
+        var passwordHash:String,
         val email:String,
         val emailVerified:Boolean,
         val firstName:String,
@@ -14,10 +14,19 @@ data class User(
         var profileName:String,
         var profileDesc:String,
         val isPrivate:Boolean,
-        val facebookToken:String=""
-
+        val facebookToken:String="",
+        val gender:Gender=Gender.UNSPECIFIED
 ) {
 
+    enum class Gender{MALE{
+        override fun toString(): String {
+            return "male"
+        }
+    },FEMALE{
+        override fun toString(): String {
+            return "female"
+        }
+    },UNSPECIFIED}
 
 
 }

@@ -1,8 +1,8 @@
 package io.dancmc.instacopy.Routes
 
 import io.dancmc.instacopy.Main
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import spark.Route
 import spark.Spark.halt

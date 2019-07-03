@@ -13,12 +13,16 @@ import kotlin.collections.ArrayList
 
 object DiscoverRoutes {
 
-    fun searchUsersQuery(paging: Boolean, displayName: String, page: Int = 1): Pair<String, HashMap<String, Any>> {
+    fun searchUsersQuery(myUserID: String, paging: Boolean, displayName: String, page: Int = 1): Pair<String, HashMap<String, Any>> {
         val params = hashMapOf<String, Any>()
         params.put("display_name", displayName)
+        params.put("my_user_id", myUserID)
         params.put("skip", (page - 1) * 20)
-        return Pair("match (u:User)  with u,  apoc.text.jaroWinklerDistance(u.display_name,\$display_name) as distance " +
-                "return u.display_name as display_name, u.user_id as user_id, u.profile_name as profile_name " +
+        return Pair("with \$my_user_id as my_user_id\n" +
+                "MATCH (me:User{user_id:my_user_id})\n" +
+                "match (u:User)  with me,u,  apoc.text.jaroWinklerDistance(u.display_name,\$display_name) as distance " +
+                "return u.display_name as display_name, u.user_id as user_id, u.profile_name as profile_name," +
+                "EXISTS((me)-[:FOLLOWS]->(u)) as are_following, EXISTS((me)-[:REQUESTED]->(u)) as requested_them " +
                 "order by distance desc, display_name asc ${if (paging) "skip \$skip" else ""} limit 20", params)
     }
 
@@ -34,7 +38,7 @@ object DiscoverRoutes {
         }
 
         Database.executeTransaction {
-            val query = searchUsersQuery(paging, displayName, pageNumber ?: 1)
+            val query = searchUsersQuery(userID, paging, displayName, pageNumber ?: 1)
             val results = it.execute(query.first, query.second)
 
             val jsonArray = JSONArray()
@@ -43,6 +47,8 @@ object DiscoverRoutes {
                 userObject.put("display_name", it["display_name"] as String)
                 userObject.put("profile_name", it["profile_name"] as String)
                 userObject.put("profile_image", Utils.constructPhotoUrl("profile", it["user_id"] as String))
+                userObject.put("are_following", it["are_following"] as Boolean)
+                userObject.put("requested_them", it["requested_them"] as Boolean)
                 jsonArray.put(userObject)
             }
             JSONObject().success().put("users", jsonArray)
@@ -58,9 +64,10 @@ object DiscoverRoutes {
         params.put("skip", (0..skipNumberMax).random())
         params.put("regexp", "[${Utils.randomSublist(hexList, 8).joinToString("")}].*")
 
-        return Pair("match (me:User{user_id:\$user_id}) match (u1) where not (me)-[:FOLLOWS]->(u1) " +
+        return Pair("match (me:User{user_id:\$user_id}) match (u1) where not (me)-[:FOLLOWS]->(u1) and not (me)-[:REQUESTED]->(u1) " +
                 "${if (followingFollowing) "and (me)-[:FOLLOWS*2]->(u1)" else ""} and  u1.user_id =~ \$regexp and not (u1)=(me) " +
-                "return u1.display_name as display_name, u1.user_id as user_id, u1.profile_name as profile_name skip \$skip limit 40"
+                "return u1.display_name as display_name, u1.user_id as user_id, u1.profile_name as profile_name" +
+                " skip \$skip limit 40"
                 , params)
 
     }
@@ -124,25 +131,27 @@ object DiscoverRoutes {
             }
 
             // bias towards following of following in ratio 2:1
-            randomList.shuffle()
-            randomList.forEachIndexed { index, discoverUser ->
-                if (index < 20) {
-                    followingFollowingList.add(discoverUser)
-                }
-            }
-            followingFollowingList.shuffle()
+            randomList
+                    .shuffled()
+                    .forEachIndexed { index, discoverUser ->
+                        if (index < 20) {
+                            followingFollowingList.add(discoverUser)
+                        }
+                    }
 
             val jsonArray = JSONArray()
-            followingFollowingList.forEachIndexed { index, discoverUser ->
-                if (index < 20) {
-                    val userObject = JSONObject()
-                    userObject.put("display_name", discoverUser.displayName)
-                    userObject.put("profile_name", discoverUser.profileName)
-                    userObject.put("profile_image", Utils.constructPhotoUrl("profile", discoverUser.userID))
-                    userObject.put("reason", if (discoverUser.reasonFollowing) "Based on people you follow" else "")
-                    jsonArray.put(userObject)
-                }
-            }
+            followingFollowingList
+                    .shuffled()
+                    .forEachIndexed { index, discoverUser ->
+                        if (index < 20) {
+                            val userObject = JSONObject()
+                            userObject.put("display_name", discoverUser.displayName)
+                            userObject.put("profile_name", discoverUser.profileName)
+                            userObject.put("profile_image", Utils.constructPhotoUrl("profile", discoverUser.userID))
+                            userObject.put("reason", if (discoverUser.reasonFollowing) "Based on people you follow" else "")
+                            jsonArray.put(userObject)
+                        }
+                    }
 
 
             JSONObject().success().put("users", jsonArray)
@@ -192,8 +201,8 @@ object DiscoverRoutes {
             val followFollowingList = LinkedList<String>()
             val randomList = LinkedList<String>()
 
-            fun getNewSeedReg():Boolean{
-                if(seedReg.length == 16) return false
+            fun getNewSeedReg(): Boolean {
+                if (seedReg.length == 16) return false
 
                 val remaining = ArrayList(hexList)
                 remaining.removeAll(seedReg.toList())
@@ -203,7 +212,7 @@ object DiscoverRoutes {
                 return true
             }
 
-            fun runQuery(){
+            fun runQuery() {
                 val time = System.currentTimeMillis()
                 var query = suggestPhotosQuery(userID, true, regexp)
                 var results = it.execute(query.first, query.second)
@@ -211,7 +220,7 @@ object DiscoverRoutes {
                 Database.processResult(results) {
                     followFollowingList.add(it["photo_id"] as String)
                 }
-                println(System.currentTimeMillis()-time)
+                println(System.currentTimeMillis() - time)
 
                 val time2 = System.currentTimeMillis()
                 query = suggestPhotosQuery(userID, false, regexp)
@@ -220,13 +229,13 @@ object DiscoverRoutes {
                 Database.processResult(results) {
                     randomList.add(it["photo_id"] as String)
                 }
-                println(System.currentTimeMillis()-time2)
+                println(System.currentTimeMillis() - time2)
 
             }
 
-            while(followFollowingList.size+randomList.size==0) {
+            while (followFollowingList.size + randomList.size == 0) {
                 val tryGetNewReg2 = getNewSeedReg()
-                if(!tryGetNewReg2){
+                if (!tryGetNewReg2) {
                     return@executeTransaction JSONObject().success()
                             .put("seed", seed)
                             .put("photos", JSONArray())
@@ -262,7 +271,6 @@ object DiscoverRoutes {
             json.put("seed", newSeed).put("photos", jsonArray)
         } as JSONObject? ?: JSONObject().fail(message = "DB Failure")
     }
-
 
 
 //    fun suggestPhotosQuery2(userID: String, followingFollowing: Boolean, regexp: String, page: Int): Pair<String, HashMap<String, Any>> {

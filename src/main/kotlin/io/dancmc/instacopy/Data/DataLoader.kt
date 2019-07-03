@@ -1,7 +1,7 @@
 package io.dancmc.instacopy.Data
 
 import com.javadocmd.simplelatlng.LatLng
-import io.dancmc.instacopy.ImagePuller
+import io.dancmc.instacopy.ApiDownloader
 import io.dancmc.instacopy.Utils
 import java.io.File
 import java.util.*
@@ -14,22 +14,21 @@ class DataLoader {
 
     companion object {
         val rng = Random()
-        val start2013 = 1356958800000
+        val start2014 = 1388494800000
         val start2017Sep = 1505829600000
         val twoMonthsInMs = 1000L*60*60*24*60
 
         fun execute() {
 
-            val maleUserList = ImagePuller.getUsers(5000, "male",true)
-            val femaleUserList = ImagePuller.getUsers(5000, "female",true)
+            val userList = ApiDownloader.getUsersFromFile(2000)
             val locations = Utils.loadTSVLinked("/users/daniel/downloads/unsplash/locations.txt")
-            val quoteList = Utils.loadTSVLinked("/users/daniel/downloads/unsplash/quotes.txt")
+            val quoteList = Utils.loadTSVLinked("/users/daniel/downloads/unsplash/quotes.txt").mapTo(LinkedList()) { "${it[0]} - ${it[1]}" }
             val unifiedPhotoTsv = "/users/daniel/downloads/unsplash/photos.txt"
             val profilePhotoTsv = "/users/daniel/downloads/unsplash/profile_pics.txt"
 
-            val thumbPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/thumb-v2.txt")
-            val smallPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/small-v2.txt")
-            val regularPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/regular-v2.txt")
+            val thumbPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/thumb.txt")
+            val smallPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/small.txt")
+            val regularPhotoList = Utils.loadTSV("/users/daniel/downloads/unsplash/regular.txt")
 
             val thumbHashMap = HashMap<String, String>()
             thumbPhotoList.forEach { thumbHashMap.put(it[0], it[1]) }
@@ -63,8 +62,8 @@ class DataLoader {
                 val regularDimen = Utils.readDimensions(regularFile)
 
                 val photoID = id
-                val caption = quoteList.pop()[0]
-                val timeStamp = getRandomTimestamp(start2013, System.currentTimeMillis())
+                val caption = quoteList.pop()
+                val timeStamp = getRandomTimestamp(start2014, System.currentTimeMillis())
                 val location = if (rng.nextDouble()<0.33 && locations.size>0) locations.pop() else null
                 val locationName = location?.get(2)?:""
                 val latlong = LatLng.random()
@@ -77,25 +76,23 @@ class DataLoader {
                         longitude = longitude, latitude = latitude, thumbSize = thumbDimen, smallSize = smallDimen, regularSize = regularDimen))
                 photoTsvToWrite.add("$id\t$caption\t$timeStamp\t$locationName\t$latitude\t$longitude\t$thumbUrl\t$smallUrl\t$regularUrl")
             }
+            // for logging purposes only
+            File(ApiDownloader.folder, unifiedPhotoTsv).delete()
             Utils.write(unifiedPhotoTsv, photoTsvToWrite)
 
             // deal with users
-            val userList = ArrayList<User>()
             val profilePicList = ArrayList<String>()
-            for(i in 0 until 1000){
-                val male = maleUserList[i]
-                male.profileDesc = quoteList.pop()[0]
-                userList.add(male)
-                profilePicList.add("male\t${male.userID}\t${i+1}")
-
-                val female = femaleUserList[i]
-                female.profileDesc = quoteList.pop()[0]
-                userList.add(female)
-                profilePicList.add("female\t${female.userID}\t${i+1}")
+            userList.forEachIndexed{ i, u->
+                u.profileDesc = quoteList.pop()
+                profilePicList.add("${u.userID}\t${u.gender}\t${i+1}")
             }
+            // for logging purposes only
+            File(ApiDownloader.folder, profilePhotoTsv).delete()
             Utils.write(profilePhotoTsv,profilePicList)
 
+
             // deal with users posting photos
+            println("Generating user to photo maps")
             val userUploadMaps = HashMap<String, HashMap<String, Long>>()
             val photoToUserMap = HashMap<String, String>()
             var uploadCount = 0
@@ -111,6 +108,7 @@ class DataLoader {
             }
 
             // generate follows
+            println("Generating follows")
             val followDistribution = createRightSkew(2000)
             val userFollowMaps = HashMap<String, HashMap<String,Long>>()
             followDistribution.forEachIndexed { index, num->
@@ -119,13 +117,14 @@ class DataLoader {
                 val sourceID = userList[index].userID
                 userList.forEach { target->
                     if(rng.nextDouble()<=probability && target.userID!= sourceID){
-                        followMap.put(target.userID, getRandomTimestamp(start2013, System.currentTimeMillis()))
+                        followMap.put(target.userID, getRandomTimestamp(start2014, System.currentTimeMillis()))
                     }
                 }
                 userFollowMaps.put(sourceID, followMap)
             }
 
             // generate likes & comments
+            println("Generating likes and comments")
             val userMap = HashMap<String,User>()
             val photoMap = HashMap<String,Photo>()
             userList.forEach { userMap.put(it.userID, it) }
@@ -146,7 +145,7 @@ class DataLoader {
                         totalLikes++
                         if(rng.nextDouble()<0.0170){
                             if(quoteList.isNotEmpty()) {
-                                commentMap.put(photo.photo_id, Pair(quoteList.pop()[0], like.second + 5000))
+                                commentMap.put(photo.photo_id, Pair(quoteList.pop(), like.second + 5000))
                                 totalComments++
                             }
                             wantedComments++
@@ -157,14 +156,19 @@ class DataLoader {
                 userCommentMap.put(user.userID, commentMap)
             }
 
-
+            println("Finished generating network")
 
             // add users to database
             Database.addUsers(userList)
+            println("Added users to db")
             Database.addPhotos(photoList)
+            println("Added photos to db")
             Database.addFollows(userFollowMaps)
+            println("Added userfollowmaps to db")
             Database.addLikes(userLikeMap)
+            println("Added userlikemap to db")
             Database.addComments(userCommentMap)
+            println("Added usercommentmap to db")
             Database.addPosted(userUploadMaps)
 
             println("Total Likes : $totalLikes")

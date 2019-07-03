@@ -5,7 +5,8 @@ import io.dancmc.instacopy.Data.User
 import io.dancmc.instacopy.Utils
 import io.dancmc.instacopy.fail
 import io.dancmc.instacopy.success
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import org.neo4j.graphdb.Label
@@ -182,17 +183,19 @@ object UserRoutes {
         var isFollowing = false
         var hasRequested = false
         var isPrivate = false
+        var otherID = ""
 
         val privacy = Database.privacyCheck(userID, displayName)
         if(privacy!=null && privacy.isNotEmpty()){
             isFollowing = privacy["isFollowing"] as Boolean
             hasRequested = privacy["hasRequested"] as Boolean
             isPrivate = privacy["isPrivate"] as Boolean
+            otherID = privacy["otherID"] as String
         } else {
             return@Route JSONObject().fail(message = "User does not exist")
         }
 
-        if(isPrivate && !isFollowing){
+        if(isPrivate && !isFollowing && otherID!=userID){
             return@Route JSONObject().fail(code = Errors.PRIVACY, message = "User is private")
         }
 
@@ -317,7 +320,8 @@ object UserRoutes {
         params.put("user_id", userID)
         return Pair("match (me:User{user_id:\$user_id})<-[r:REQUESTED]-(u1:User)\n" +
                 "return u1.display_name as display_name, u1.profile_name as profile_name, u1.user_id as user_id, " +
-                "EXISTS((me)-[:FOLLOWS]->(u1)) as are_following, r.timestamp as timestamp", params)
+                "EXISTS((me)-[:FOLLOWS]->(u1)) as are_following,EXISTS((me)-[:REQUESTED]->(u1)) as requested_them, " +
+                "r.timestamp as timestamp", params)
     }
 
     val requests = Route { request, response ->
@@ -337,6 +341,7 @@ object UserRoutes {
                 requestObject.put("profile_image", Utils.constructPhotoUrl("profile",it["user_id"] as String))
                 requestObject.put("profile_name", it["profile_name"] as String)
                 requestObject.put("are_following", it["are_following"] as Boolean)
+                requestObject.put("requested_them", it["requested_them"] as Boolean)
             }
 
             return@executeTransaction JSONObject().success().put("requests", array)
@@ -384,7 +389,7 @@ object UserRoutes {
                 (if (paging) "match (last_follower)${if (!reverse) "-[f1:FOLLOWS]->" else "<-[f1:FOLLOWS]-"}(u1)\n" +
                         "where f.timestamp>f1.timestamp\n" else "") +
                 "return u.display_name as display_name, u.profile_name as profile_name, " +
-                "u.user_id as user_id,EXISTS((me)-[:FOLLOWS]->(u)) as are_following,  " +
+                "u.user_id as user_id,EXISTS((me)-[:FOLLOWS]->(u)) as are_following, EXISTS((me)-[:REQUESTED]->(u)) as requested_them," +
                 "f.timestamp as timestamp order by f.timestamp asc limit 30", params)
     }
 
@@ -447,7 +452,7 @@ object UserRoutes {
                 (if (paging) "match (last_follower)-[f1:FOLLOWS]->(u1)\n" +
                         "where f.timestamp>f1.timestamp and (me)-[:FOLLOWS]->(u)\n" else "") +
                 "return u.display_name as display_name, u.profile_name as profile_name, " +
-                "u.user_id as user_id, " +
+                "u.user_id as user_id, EXISTS((me)-[:FOLLOWS]->(u)) as are_following, EXISTS((me)-[:REQUESTED]->(u)) as requested_them," +
                 "f.timestamp as timestamp order by f.timestamp asc limit 30", params)
     }
 
@@ -602,7 +607,7 @@ object UserRoutes {
 
             val filepart = request.raw().getPart("profile_image")
             if (filepart != null) {
-                launch {
+                GlobalScope.launch {
                     Utils.handleImage(userID, filepart.inputStream, true)
                 }
             }
